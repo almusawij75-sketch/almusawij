@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Personal Finance & Expense Dashboard</title>
+
+  <!-- Google Fonts: Inter & Cairo (for crisp Arabic typography) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg-app: #f4f6f9;
+      --bg-card: #ffffff;
+      --bg-subtle: #f8fafc;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --border-color: #e2e8f0;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
+    }
+
+    [data-theme="dark"] {
+      --bg-app: #0f172a;
+      --bg-card: #1e293b;
+      --bg-subtle: #0f172a;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --border-color: #334155;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --accent-soft: rgba(56, 189, 248, 0.14);
+      --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+    }
+
+    [data-theme="emerald"] {
+      --bg-app: #061b17;
+      --bg-card: #0c2b25;
+      --bg-subtle: #08221d;
+      --text-primary: #ecfdf5;
+      --text-secondary: #86efac;
+      --border-color: #164e43;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.16);
+      --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="sand"] {
+      --bg-app: #f7f3eb;
+      --bg-card: #fffdf9;
+      --bg-subtle: #f2ece1;
+      --text-primary: #292524;
+      --text-secondary: #57534e;
+      --border-color: #e7dec8;
+      --accent: #b45309;
+      --accent-hover: #92400e;
+      --accent-soft: #fef3c7;
+      --shadow: 0 4px 20px -2px rgba(41, 37, 36, 0.07);
+    }
+
+    /* Alert Overlays for Weekly (#FF9E7D coral-orange) and Monthly (Clear Red) */
+    body.alert-weekly {
+      --bg-app: #fff3ee;
+      --border-color: #ff9e7d;
+    }
+    [data-theme="dark"] body.alert-weekly,
+    [data-theme="emerald"] body.alert-weekly {
+      --bg-app: #2d1b16;
+      --border-color: #ff9e7d;
+    }
+
+    body.alert-monthly {
+      --bg-app: #fef2f2;
+      --border-color: #ef4444;
+    }
+    [data-theme="dark"] body.alert-monthly,
+    [data-theme="emerald"] body.alert-monthly {
+      --bg-app: #2f1215;
+      --border-color: #ef4444;
+    }
+
+    body {
+      font-family: 'Inter', 'Cairo', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      transition: background-color 0.35s ease, color 0.25s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html[dir="rtl"] body {
+      font-family: 'Cairo', 'Inter', system-ui, sans-serif;
+    }
+
+    .theme-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .theme-subtle {
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+    }
+
+    .theme-input {
+      background-color: var(--bg-subtle);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    .theme-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .btn-accent {
+      background-color: var(--accent);
+      color: #ffffff;
+    }
+    .btn-accent:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .text-muted {
+      color: var(--text-secondary);
+    }
+
+    /* Hide scrollbars cleanly on horizontal pills */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="theme-card sticky top-0 z-40 border-b">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand + Sync Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-white text-lg shadow" style="background: var(--accent);">
+          ₿
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-extrabold leading-tight" data-i18n="appTitle">Personal Finance</h1>
+          <div class="flex items-center gap-2 text-xs text-muted">
+            <span id="syncDot" class="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
+            <span id="syncStatusText" data-i18n="guestMode">Guest Preview (Local)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls Toolbar -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Currency Switcher + Rate -->
+        <div class="theme-subtle rounded-xl px-2.5 py-1.5 flex items-center gap-2 text-xs sm:text-sm">
+          <button id="currencyToggleBtn" class="font-bold px-2 py-0.5 rounded-lg btn-accent transition">SAR</button>
+          <div class="flex items-center gap-1 text-muted">
+            <span>1 USD =</span>
+            <input id="exchangeRateInput" type="number" step="0.01" min="0.01" value="3.75"
+              class="w-14 bg-transparent font-bold text-center border-b border-dashed focus:outline-none"
+              style="color: var(--text-primary); border-color: var(--accent);" title="Exchange Rate (SAR per 1 USD)" />
+            <span>SAR</span>
+          </div>
+        </div>
+
+        <!-- Theme Selector -->
+        <select id="themeSelect" aria-label="Theme" class="theme-input rounded-xl px-2.5 py-1.5 text-xs sm:text-sm font-semibold cursor-pointer">
+          <option value="light" data-i18n="themeLight">Clean Light</option>
+          <option value="dark" data-i18n="themeDark">Dark Slate</option>
+          <option value="emerald" data-i18n="themeEmerald">Midnight Emerald</option>
+          <option value="sand" data-i18n="themeSand">Warm Sand</option>
+        </select>
+
+        <!-- Language Toggle -->
+        <button id="langToggleBtn" class="theme-input rounded-xl px-3 py-1.5 text-xs sm:text-sm font-bold hover:opacity-80 transition">
+          العربية
+        </button>
+
+        <!-- Widget Visibility Button -->
+        <button id="openVisibilityBtn" class="theme-input rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 hover:opacity-80 transition">
+          <span>👁️</span>
+          <span class="hidden sm:inline" data-i18n="customizeWidgets">Widgets</span>
+        </button>
+
+        <!-- Auth Button -->
+        <button id="openAuthModalBtn" class="btn-accent rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-bold shadow-sm transition">
+          <span id="authBtnLabel" data-i18n="signInSync">Sign In / Sync</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- BUDGET EXCEEDED ALERT BANNERS -->
+  <div id="alertContainer" class="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4 space-y-2 hidden">
+    <!-- Monthly Red Alert -->
+    <div id="monthlyAlertBanner" class="hidden rounded-2xl p-3.5 bg-red-600 text-white font-semibold text-sm flex items-center justify-between shadow-md">
+      <div class="flex items-center gap-2.5">
+        <span class="text-lg">🚨</span>
+        <span id="monthlyAlertText">Monthly Spending exceeded Target Monthly Spending!</span>
+      </div>
+      <span id="monthlyAlertDiff" class="font-extrabold bg-white/20 px-2.5 py-0.5 rounded-lg text-xs"></span>
+    </div>
+
+    <!-- Weekly Coral-Orange Alert (#FF9E7D) -->
+    <div id="weeklyAlertBanner" class="hidden rounded-2xl p-3.5 text-slate-950 font-semibold text-sm flex items-center justify-between shadow-md" style="background-color: #FF9E7D;">
+      <div class="flex items-center gap-2.5">
+        <span class="text-lg">⚠️</span>
+        <span id="weeklyAlertText">Weekly Spending exceeded Target Week Spending!</span>
+      </div>
+      <span id="weeklyAlertDiff" class="font-extrabold bg-black/10 px-2.5 py-0.5 rounded-lg text-xs"></span>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-6">
+
+    <!-- 12-MONTH SELECTOR + YEAR PICKER -->
+    <section class="theme-card rounded-2xl p-3 sm:p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold" data-i18n="yearLabel">Year:</span>
+          <select id="yearSelect" class="theme-input rounded-lg px-2.5 py-1 text-sm font-bold"></select>
+        </div>
+        <div class="text-xs text-muted" id="activeRangeBadge"></div>
+      </div>
+      <div id="monthPills" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        <!-- Populated via JS for all 12 months -->
+      </div>
+    </section>
+
+    <!-- PRIMARY KPI SUMMARY CARDS (Widget: summaryCards) -->
+    <section data-widget="summaryCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Current Wallet Card -->
+      <div class="theme-card rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-muted" data-i18n="currentWallet">Current Wallet</span>
+          <span class="p-2 rounded-xl text-base" style="background: var(--accent-soft); color: var(--accent);">💳</span>
+        </div>
+        <div class="mt-3">
+          <div id="kpiWallet" class="text-2xl sm:text-3xl font-extrabold tracking-tight">0.00 SAR</div>
+          <p class="text-xs text-muted mt-1" data-i18n="walletSubtext">Available liquid balance</p>
+        </div>
+      </div>
+
+      <!-- Savings Card -->
+      <div class="theme-card rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-muted" data-i18n="savings">Savings</span>
+          <span class="p-2 rounded-xl text-base bg-emerald-500/15 text-emerald-500">🏦</span>
+        </div>
+        <div class="mt-3">
+          <div id="kpiSavings" class="text-2xl sm:text-3xl font-extrabold tracking-tight">0.00 SAR</div>
+          <div class="flex items-center justify-between text-xs text-muted mt-1">
+            <span data-i18n="savingTarget">Saving Target:</span>
+            <span id="kpiSavingTarget" class="font-bold">0.00 SAR (0%)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weekly Spending Card -->
+      <div id="weeklyKpiCard" class="theme-card rounded-2xl p-5 flex flex-col justify-between transition-colors">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-muted" data-i18n="weeklySpending">Weekly Spending</span>
+          <span class="p-2 rounded-xl text-base bg-orange-500/15 text-orange-500">📅</span>
+        </div>
+        <div class="mt-3">
+          <div id="kpiWeeklySpend" class="text-2xl sm:text-3xl font-extrabold tracking-tight">0.00 SAR</div>
+          <div class="flex items-center justify-between text-xs text-muted mt-1">
+            <span data-i18n="targetWeekSpending">Target Week Spending:</span>
+            <span id="kpiWeeklyTarget" class="font-bold">0.00 SAR</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Spending Card -->
+      <div id="monthlyKpiCard" class="theme-card rounded-2xl p-5 flex flex-col justify-between transition-colors">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-muted" data-i18n="monthlySpending">Monthly Spending</span>
+          <span class="p-2 rounded-xl text-base bg-rose-500/15 text-rose-500">📊</span>
+        </div>
+        <div class="mt-3">
+          <div id="kpiMonthlySpend" class="text-2xl sm:text-3xl font-extrabold tracking-tight">0.00 SAR</div>
+          <div class="flex items-center justify-between text-xs text-muted mt-1">
+            <span data-i18n="targetMonthlySpending">Target Monthly Spending:</span>
+            <span id="kpiMonthlyTarget" class="font-bold">0.00 SAR</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CUSTOM DATE RANGES & BUDGET TARGETS (Widget: targetsAndRanges) -->
+    <section data-widget="targetsAndRanges" class="theme-card rounded-2xl p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h2 class="text-base font-extrabold flex items-center gap-2">
+          <span>🎯</span>
+          <span data-i18n="dateRangesAndTargets">Custom Date Ranges & Spending Targets</span>
+        </h2>
+        <button id="resetMonthDatesBtn" class="text-xs font-semibold underline text-muted hover:opacity-80" data-i18n="autoSetMonthDates">
+          Auto-fill selected month dates
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Week Start & End -->
+        <div class="theme-subtle rounded-xl p-3.5 space-y-2">
+          <label class="block text-xs font-bold uppercase text-muted" data-i18n="weekRangeLabel">Week Range (Start – End)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input id="weekStartInput" type="date" class="theme-input rounded-lg px-2 py-1.5 text-xs font-semibold w-full" />
+            <input id="weekEndInput" type="date" class="theme-input rounded-lg px-2 py-1.5 text-xs font-semibold w-full" />
+          </div>
+        </div>
+
+        <!-- Target Week Spending -->
+        <div class="theme-subtle rounded-xl p-3.5 space-y-2">
+          <label class="block text-xs font-bold uppercase text-muted" data-i18n="targetWeekSpending">Target Week Spending</label>
+          <div class="flex items-center gap-2">
+            <input id="targetWeekInput" type="number" min="0" step="any" placeholder="0"
+              class="theme-input rounded-lg px-3 py-1.5 text-sm font-bold w-full" />
+            <span class="text-xs font-bold currency-code">SAR</span>
+          </div>
+        </div>
+
+        <!-- Month Start & End -->
+        <div class="theme-subtle rounded-xl p-3.5 space-y-2">
+          <label class="block text-xs font-bold uppercase text-muted" data-i18n="monthRangeLabel">Month Range (Start – End)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input id="monthStartInput" type="date" class="theme-input rounded-lg px-2 py-1.5 text-xs font-semibold w-full" />
+            <input id="monthEndInput" type="date" class="theme-input rounded-lg px-2 py-1.5 text-xs font-semibold w-full" />
+          </div>
+        </div>
+
+        <!-- Target Monthly Spending -->
+        <div class="theme-subtle rounded-xl p-3.5 space-y-2">
+          <label class="block text-xs font-bold uppercase text-muted" data-i18n="targetMonthlySpending">Target Monthly Spending</label>
+          <div class="flex items-center gap-2">
+            <input id="targetMonthInput" type="number" min="0" step="any" placeholder="0"
+              class="theme-input rounded-lg px-3 py-1.5 text-sm font-bold w-full" />
+            <span class="text-xs font-bold currency-code">SAR</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN NAVIGATION TABS: CURRENT WALLET | SAVINGS | EXPENSES -->
+    <section class="theme-card rounded-2xl overflow-hidden">
+      <div class="flex border-b" style="border-color: var(--border-color);">
+        <button data-tab="wallet" class="nav-tab flex-1 py-3.5 px-4 text-sm font-extrabold text-center border-b-2 transition"
+          style="border-color: var(--accent); color: var(--accent);" data-i18n="tabWallet">
+          💳 Current Wallet
+        </button>
+        <button data-tab="savings" class="nav-tab flex-1 py-3.5 px-4 text-sm font-extrabold text-center border-b-2 border-transparent text-muted transition" data-i18n="tabSavings">
+          🏦 Savings
+        </button>
+        <button data-tab="expenses" class="nav-tab flex-1 py-3.5 px-4 text-sm font-extrabold text-center border-b-2 border-transparent text-muted transition" data-i18n="tabExpenses">
+          🧾 Expenses
+        </button>
+      </div>
+
+      <!-- TAB 1: CURRENT WALLET -->
+      <div id="tab-wallet" class="tab-panel p-5 space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Add / Adjust Wallet Funds -->
+          <div class="theme-subtle rounded-2xl p-4 space-y-3">
+            <h3 class="text-sm font-extrabold" data-i18n="manageWalletTitle">Add Funds or Set Wallet Balance</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-muted mb-1" data-i18n="amountLabel">Amount</label>
+                <input id="walletAmountInput" type="number" min="0" step="any" placeholder="0.00"
+                  class="theme-input rounded-xl px-3 py-2 text-sm font-bold w-full" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-muted mb-1" data-i18n="noteLabel">Note (Optional)</label>
+                <input id="walletNoteInput" type="text" placeholder="Salary, Deposit..."
+                  class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 pt-1">
+              <button id="addWalletFundsBtn" class="btn-accent rounded-xl px-4 py-2 text-xs sm:text-sm font-bold shadow-sm transition" data-i18n="addFundsBtn">
+                + Add Funds to Wallet
+              </button>
+              <button id="setWalletExactBtn" class="theme-input rounded-xl px-4 py-2 text-xs sm:text-sm font-bold hover:opacity-80 transition" data-i18n="setExactBalanceBtn">
+                Set Exact Balance
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Deduction Summary -->
+          <div class="theme-subtle rounded-2xl p-4 flex flex-col justify-between space-y-3">
+            <h3 class="text-sm font-extrabold" data-i18n="walletLedgerSummary">Wallet Flow Overview</h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-muted" data-i18n="totalAddedLabel">Total Top-ups / Added:</span>
+                <span id="walletTotalAdded" class="font-bold text-emerald-500">0.00 SAR</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-muted" data-i18n="deductedExpensesLabel">Deducted for Expenses:</span>
+                <span id="walletTotalExpenses" class="font-bold text-rose-500">- 0.00 SAR</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-muted" data-i18n="deductedSavingsLabel">Transferred to Savings:</span>
+                <span id="walletTotalSavings" class="font-bold text-amber-500">- 0.00 SAR</span>
+              </div>
+              <div class="border-t pt-2 flex justify-between font-extrabold text-base" style="border-color: var(--border-color);">
+                <span data-i18n="currentWallet">Current Wallet</span>
+                <span id="walletSummaryBalance">0.00 SAR</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wallet History Log -->
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-muted mb-2" data-i18n="recentWalletActivity">Recent Wallet Activity</h4>
+          <div id="walletHistoryList" class="space-y-2 max-h-56 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <!-- TAB 2: SAVINGS -->
+      <div id="tab-savings" class="tab-panel hidden p-5 space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Savings Progress Card -->
+          <div class="theme-subtle rounded-2xl p-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-extrabold" data-i18n="savingsProgressTitle">Savings Goal Progress</h3>
+              <span id="savingsPercentBadge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-500/15 text-emerald-500">0%</span>
+            </div>
+
+            <div class="w-full h-4 rounded-full overflow-hidden bg-slate-300/30">
+              <div id="savingsProgressBar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 0%;"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="block text-xs text-muted" data-i18n="currentSavingsLabel">Current Savings</span>
+                <span id="savingsCurrentDisplay" class="text-lg font-extrabold text-emerald-500">0.00 SAR</span>
+              </div>
+              <div>
+                <span class="block text-xs text-muted" data-i18n="savingTarget">Saving Target</span>
+                <span id="savingsTargetDisplay" class="text-lg font-extrabold">0.00 SAR</span>
+              </div>
+            </div>
+
+            <div class="pt-1">
+              <label class="block text-xs font-semibold text-muted mb-1" data-i18n="updateSavingTargetLabel">Set Saving Target</label>
+              <div class="flex gap-2">
+                <input id="savingTargetInput" type="number" min="0" step="any" placeholder="0.00"
+                  class="theme-input rounded-xl px-3 py-2 text-sm font-bold w-full" />
+                <button id="saveTargetBtn" class="btn-accent rounded-xl px-4 py-2 text-xs sm:text-sm font-bold whitespace-nowrap" data-i18n="saveTargetBtn">
+                  Update Target
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transfer Between Wallet & Savings -->
+          <div class="theme-subtle rounded-2xl p-4 space-y-3">
+            <h3 class="text-sm font-extrabold" data-i18n="transferSavingsTitle">Transfer to / from Savings</h3>
+            <p class="text-xs text-muted" data-i18n="savingsDeductionNote">
+              Adding to Savings automatically deducts from Current Wallet. Withdrawing returns funds to Current Wallet.
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-muted mb-1" data-i18n="amountLabel">Amount</label>
+                <input id="savingsTransferInput" type="number" min="0" step="any" placeholder="0.00"
+                  class="theme-input rounded-xl px-3 py-2 text-sm font-bold w-full" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-muted mb-1" data-i18n="noteLabel">Note</label>
+                <input id="savingsNoteInput" type="text" placeholder="Emergency fund..."
+                  class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 pt-1">
+              <button id="depositSavingsBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-xs sm:text-sm font-bold shadow-sm transition" data-i18n="depositSavingsBtn">
+                + Add to Savings (Deduct Wallet)
+              </button>
+              <button id="withdrawSavingsBtn" class="theme-input rounded-xl px-4 py-2 text-xs sm:text-sm font-bold hover:opacity-80 transition" data-i18n="withdrawSavingsBtn">
+                Withdraw to Wallet
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: EXPENSES -->
+      <div id="tab-expenses" class="tab-panel hidden p-5 space-y-5">
+        <!-- Add / Edit Expense Form -->
+        <form id="expenseForm" class="theme-subtle rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 id="expenseFormTitle" class="text-sm font-extrabold" data-i18n="addExpenseTitle">Add New Expense (Auto-deducts from Wallet)</h3>
+            <button type="button" id="cancelEditExpenseBtn" class="hidden text-xs font-bold text-rose-500 underline" data-i18n="cancelEdit">Cancel Edit</button>
+          </div>
+          <input type="hidden" id="editingExpenseId" value="" />
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-muted mb-1" data-i18n="dateLabel">Date</label>
+              <input id="expenseDateInput" type="date" required class="theme-input rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold w-full" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-muted mb-1" data-i18n="amountLabel">Amount</label>
+              <input id="expenseAmountInput" type="number" min="0.01" step="any" required placeholder="0.00"
+                class="theme-input rounded-xl px-3 py-2 text-sm font-bold w-full" />
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-semibold text-muted" data-i18n="categoryLabel">Category</label>
+                <button type="button" id="openCategoriesModalBtn" class="text-[11px] font-bold underline" style="color: var(--accent);" data-i18n="manageCatsBtn">+ Manage</button>
+              </div>
+              <select id="expenseCategorySelect" class="theme-input rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold w-full"></select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-muted mb-1" data-i18n="notesLabel">Notes</label>
+              <input id="expenseNotesInput" type="text" placeholder="Coffee, Groceries..."
+                class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
+            </div>
+
+            <div class="flex items-end">
+              <button type="submit" id="saveExpenseBtn" class="btn-accent rounded-xl px-4 py-2 text-sm font-bold w-full shadow-sm transition" data-i18n="saveExpenseBtn">
+                Save Expense
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Filter & Expense Table -->
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-muted" data-i18n="filterViewLabel">Show:</span>
+              <select id="expenseFilterSelect" class="theme-input rounded-lg px-2.5 py-1 text-xs font-bold">
+                <option value="month" data-i18n="filterMonthRange">Selected Month Range</option>
+                <option value="week" data-i18n="filterWeekRange">Selected Week Range</option>
+                <option value="all" data-i18n="filterAll">All Expenses</option>
+              </select>
+            </div>
+            <span id="filteredExpenseTotal" class="text-xs sm:text-sm font-extrabold">0.00 SAR</span>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border" style="border-color: var(--border-color);">
+            <table class="w-full text-sm text-start">
+              <thead class="theme-subtle text-xs uppercase text-muted">
+                <tr>
+                  <th class="py-2.5 px-3 text-start" data-i18n="dateLabel">Date</th>
+                  <th class="py-2.5 px-3 text-start" data-i18n="categoryLabel">Category</th>
+                  <th class="py-2.5 px-3 text-start" data-i18n="notesLabel">Notes</th>
+                  <th class="py-2.5 px-3 text-end" data-i18n="amountLabel">Amount</th>
+                  <th class="py-2.5 px-3 text-center" data-i18n="actionsLabel">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="expensesTableBody" class="divide-y" style="border-color: var(--border-color);"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ANALYTICS: WEEK-OVER-WEEK & MONTH-OVER-MONTH COMPARISONS (Widget: comparisons) -->
+    <section data-widget="comparisons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Week-to-Week Comparison -->
+      <div class="theme-card rounded-2xl p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold" data-i18n="wowTitle">Week-over-Week Comparison</h3>
+          <span id="wowBadge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-500/15">0%</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div class="theme-subtle rounded-xl p-3">
+            <span class="block text-xs text-muted" data-i18n="selectedWeekLabel">Selected Week</span>
+            <span id="wowCurrentVal" class="text-lg font-extrabold">0.00 SAR</span>
+          </div>
+          <div class="theme-subtle rounded-xl p-3">
+            <span class="block text-xs text-muted" data-i18n="previousWeekLabel">Previous 7 Days</span>
+            <span id="wowPrevVal" class="text-lg font-extrabold">0.00 SAR</span>
+          </div>
+        </div>
+        <p id="wowDiffText" class="text-xs font-semibold text-muted">Difference: 0.00 SAR</p>
+      </div>
+
+      <!-- Month-to-Month Comparison -->
+      <div class="theme-card rounded-2xl p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold" data-i18n="momTitle">Month-over-Month Comparison</h3>
+          <span id="momBadge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-500/15">0%</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div class="theme-subtle rounded-xl p-3">
+            <span class="block text-xs text-muted" data-i18n="selectedMonthLabel">Selected Month</span>
+            <span id="momCurrentVal" class="text-lg font-extrabold">0.00 SAR</span>
+          </div>
+          <div class="theme-subtle rounded-xl p-3">
+            <span class="block text-xs text-muted" data-i18n="previousMonthLabel">Previous Month</span>
+            <span id="momPrevVal" class="text-lg font-extrabold">0.00 SAR</span>
+          </div>
+        </div>
+        <p id="momDiffText" class="text-xs font-semibold text-muted">Difference: 0.00 SAR</p>
+      </div>
+    </section>
+
+    <!-- CHARTS SECTION (Widget: chartsSection) -->
+    <section data-widget="chartsSection" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="theme-card rounded-2xl p-5">
+        <h3 class="text-sm font-extrabold mb-3" data-i18n="spendingByCategoryTitle">Spending by Category (Selected Month)</h3>
+        <div class="relative h-64">
+          <canvas id="categoryChart"></canvas>
+        </div>
+      </div>
+
+      <div class="theme-card rounded-2xl p-5">
+        <h3 class="text-sm font-extrabold mb-3" data-i18n="monthlyTrendTitle">12-Month Spending Overview</h3>
+        <div class="relative h-64">
+          <canvas id="monthlyTrendChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXPORT REPORTS & CATEGORY MANAGER SHORTCUT (Widget: exportReports) -->
+    <section data-widget="exportReports" class="theme-card rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h3 class="text-sm font-extrabold flex items-center gap-2">
+          <span>📥</span>
+          <span data-i18n="exportReportsTitle">Export Financial Reports</span>
+        </h3>
+        <p class="text-xs text-muted mt-0.5" data-i18n="exportReportsSub">
+          Download mobile-ready CSV spreadsheets or printable summary reports for Daily, Weekly, or Monthly periods.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="exportPeriodSelect" class="theme-input rounded-xl px-3 py-2 text-xs sm:text-sm font-bold">
+          <option value="daily" data-i18n="periodDaily">Daily (Today / Selected Date)</option>
+          <option value="weekly" data-i18n="periodWeekly">Weekly (Selected Week Range)</option>
+          <option value="monthly" data-i18n="periodMonthly">Monthly (Selected Month Range)</option>
+        </select>
+
+        <button id="exportCsvBtn" class="btn-accent rounded-xl px-4 py-2 text-xs sm:text-sm font-bold shadow-sm transition" data-i18n="downloadCsvBtn">
+          Download CSV
+        </button>
+        <button id="exportHtmlBtn" class="theme-input rounded-xl px-4 py-2 text-xs sm:text-sm font-bold hover:opacity-80 transition" data-i18n="downloadSummaryBtn">
+          Download Summary (.html)
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="py-6 text-center text-xs font-bold text-muted border-t mt-8" style="border-color: var(--border-color);">
+    Created by Almusawij
+  </footer>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. FIREBASE AUTH MODAL -->
+  <div id="authModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="theme-card rounded-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold" data-i18n="cloudSyncTitle">Firebase Cloud Sync</h3>
+        <button id="closeAuthModalBtn" class="text-muted hover:opacity-75 text-xl font-bold">&times;</button>
+      </div>
+
+      <!-- Signed In View -->
+      <div id="signedInPanel" class="hidden space-y-4">
+        <div class="theme-subtle rounded-xl p-3.5 text-sm space-y-1">
+          <div class="text-xs text-muted" data-i18n="signedInAs">Signed in as:</div>
+          <div id="userEmailDisplay" class="font-extrabold break-all"></div>
+          <div class="text-xs text-emerald-500 font-semibold" data-i18n="realtimeSyncActive">● Real-time Firestore sync active</div>
+        </div>
+        <button id="signOutBtn" class="w-full bg-rose-600 hover:bg-rose-700 text-white rounded-xl py-2.5 text-sm font-bold transition" data-i18n="signOutBtn">
+          Sign Out
+        </button>
+      </div>
+
+      <!-- Signed Out Form -->
+      <form id="authForm" class="space-y-3">
+        <p class="text-xs text-muted" data-i18n="authDescription">
+          Sign in or create an account to automatically sync your wallet, savings, expenses, and preferences across all devices.
+        </p>
+        <div>
+          <label class="block text-xs font-bold text-muted mb-1" data-i18n="emailLabel">Email</label>
+          <input id="authEmailInput" type="email" required placeholder="you@example.com"
+            class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-muted mb-1" data-i18n="passwordLabel">Password</label>
+          <input id="authPasswordInput" type="password" required minlength="6" placeholder="••••••••"
+            class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
+        </div>
+        <div id="authFeedback" class="text-xs font-semibold hidden"></div>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="submit" id="signInSubmitBtn" class="btn-accent rounded-xl py-2.5 text-sm font-bold transition" data-i18n="signInBtn">
+            Sign In
+          </button>
+          <button type="button" id="signUpSubmitBtn" class="theme-input rounded-xl py-2.5 text-sm font-bold hover:opacity-80 transition" data-i18n="createAccountBtn">
+            Create Account
+          </button>
+        </div>
+        <button type="button" id="resetPasswordBtn" class="w-full text-xs font-semibold underline text-muted pt-1" data-i18n="forgotPasswordBtn">
+          Send Password Reset Email
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. CATEGORY MANAGER MODAL -->
+  <div id="categoriesModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="theme-card rounded-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold" data-i18n="manageCategoriesTitle">Manage Expense Categories</h3>
+        <button id="closeCategoriesModalBtn" class="text-muted hover:opacity-75 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="flex gap-2">
+        <input id="newCategoryNameInput" type="text" placeholder="e.g. Groceries / بقالة"
+          class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
+        <button id="addCategoryBtn" class="btn-accent rounded-xl px-4 py-2 text-sm font-bold whitespace-nowrap" data-i18n="addBtn">
+          Add
+        </button>
+      </div>
+
+      <div id="categoriesList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- 3. WIDGET VISIBILITY CUSTOMIZER MODAL -->
+  <div id="visibilityModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="theme-card rounded-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold" data-i18n="customizeWidgetsTitle">Customize Dashboard Widgets</h3>
+        <button id="closeVisibilityModalBtn" class="text-muted hover:opacity-75 text-xl font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-muted" data-i18n="customizeWidgetsSub">Toggle cards and sections on or off. Saved automatically.</p>
+
+      <div class="space-y-2.5 text-sm font-semibold">
+        <label class="flex items-center justify-between theme-subtle p-3 rounded-xl cursor-pointer">
+          <span data-i18n="widgetSummaryCards">Summary KPI Cards</span>
+          <input type="checkbox" data-toggle-widget="summaryCards" checked class="w-4 h-4 accent-blue-600" />
+        </label>
+        <label class="flex items-center justify-between theme-subtle p-3 rounded-xl cursor-pointer">
+          <span data-i18n="widgetTargetsRanges">Date Ranges & Spending Targets</span>
+          <input type="checkbox" data-toggle-widget="targetsAndRanges" checked class="w-4 h-4 accent-blue-600" />
+        </label>
+        <label class="flex items-center justify-between theme-subtle p-3 rounded-xl cursor-pointer">
+          <span data-i18n="widgetComparisons">Week-over-Week & Month-over-Month</span>
+          <input type="checkbox" data-toggle-widget="comparisons" checked class="w-4 h-4 accent-blue-600" />
+        </label>
+        <label class="flex items-center justify-between theme-subtle p-3 rounded-xl cursor-pointer">
+          <span data-i18n="widgetCharts">Analytics Charts</span>
+          <input type="checkbox" data-toggle-widget="chartsSection" checked class="w-4 h-4 accent-blue-600" />
+        </label>
+        <label class="flex items-center justify-between theme-subtle p-3 rounded-xl cursor-pointer">
+          <span data-i18n="widgetExports">Export Reports Bar</span>
+          <input type="checkbox" data-toggle-widget="exportReports" checked class="w-4 h-4 accent-blue-600" />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION LOGIC & FIREBASE v10.12.2 MODULAR SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      sendPasswordResetEmail,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // Exact User Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDFbzTWnIZ0fOo1fWKveymm4DuIzjPVN8w",
+      authDomain: "finance-app-8d92c.firebaseapp.com",
+      projectId: "finance-app-8d92c",
+      storageBucket: "finance-app-8d92c.firebasestorage.app",
+      messagingSenderId: "234729078838",
+      appId: "1:234729078838:web:7910301af0e287f5a71897",
+      measurementId: "G-NS34WXZ4JG"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Date Helpers
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const toISODate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    function getMonthBounds(year, monthIndex) {
+      const start = new Date(year, monthIndex, 1);
+      const end = new Date(year, monthIndex + 1, 0);
+      return { start: toISODate(start), end: toISODate(end) };
+    }
+
+    function getCurrentWeekBounds() {
+      const now = new Date();
+      const day = now.getDay(); // 0 Sun .. 6 Sat
+      const start = new Date(now);
+      start.setDate(now.getDate() - day);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return { start: toISODate(start), end: toISODate(end) };
+    }
+
+    const initialMonthBounds = getMonthBounds(today.getFullYear(), today.getMonth());
+    const initialWeekBounds = getCurrentWeekBounds();
+
+    // Default Zeroed State (Base amounts stored internally in SAR)
+    function createDefaultState() {
+      return {
+        walletBalance: 0,
+        walletTotalAdded: 0,
+        savingsBalance: 0,
+        savingTarget: 0,
+        targetWeekSpending: 0,
+        targetMonthlySpending: 0,
+        currency: "SAR",
+        exchangeRate: 3.75,
+        language: "en",
+        theme: "light",
+        selectedYear: today.getFullYear(),
+        selectedMonth: today.getMonth(),
+        weekStart: initialWeekBounds.start,
+        weekEnd: initialWeekBounds.end,
+        monthStart: initialMonthBounds.start,
+        monthEnd: initialMonthBounds.end,
+        categories: [
+          { id: "cat-general", name: "General / عام" }
+        ],
+        expenses: [],
+        walletHistory: [],
+        widgetVisibility: {
+          summaryCards: true,
+          targetsAndRanges: true,
+          comparisons: true,
+          chartsSection: true,
+          exportReports: true
+        },
+        updatedAt: Date.now()
+      };
+    }
+
+    let state = createDefaultState();
+    let currentUser = null;
+    let unsubscribeSnapshot = null;
+    let isApplyingRemote = false;
+    let categoryChartInstance = null;
+    let monthlyTrendChartInstance = null;
+
+    // ==================== BILINGUAL DICTIONARY ====================
+    const i18n = {
+      en: {
+        appTitle: "Personal Finance",
+        guestMode: "Guest Preview (Local)",
+        cloudSynced: "Cloud Synced",
+        themeLight: "Clean Light",
+        themeDark: "Dark Slate",
+        themeEmerald: "Midnight Emerald",
+        themeSand: "Warm Sand",
+        customizeWidgets: "Widgets",
+        signInSync: "Sign In / Sync",
+        accountBtn: "Account",
+        yearLabel: "Year:",
+        currentWallet: "Current Wallet",
+        walletSubtext: "Available liquid balance",
+        savings: "Savings",
+        savingTarget: "Saving Target:",
+        weeklySpending: "Weekly Spending",
+        targetWeekSpending: "Target Week Spending:",
+        monthlySpending: "Monthly Spending",
+        targetMonthlySpending: "Target Monthly Spending:",
+        dateRangesAndTargets: "Custom Date Ranges & Spending Targets",
+        autoSetMonthDates: "Auto-fill selected month dates",
+        weekRangeLabel: "Week Range (Start – End)",
+        monthRangeLabel: "Month Range (Start – End)",
+        tabWallet: "💳 Current Wallet",
+        tabSavings: "🏦 Savings",
+        tabExpenses: "🧾 Expenses",
+        manageWalletTitle: "Add Funds or Set Wallet Balance",
+        amountLabel: "Amount",
+        noteLabel: "Note (Optional)",
+        addFundsBtn: "+ Add Funds to Wallet",
+        setExactBalanceBtn: "Set Exact Balance",
+        walletLedgerSummary: "Wallet Flow Overview",
+        totalAddedLabel: "Total Top-ups / Added:",
+        deductedExpensesLabel: "Deducted for Expenses:",
+        deductedSavingsLabel: "Transferred to Savings:",
+        recentWalletActivity: "Recent Wallet Activity",
+        savingsProgressTitle: "Savings Goal Progress",
+        currentSavingsLabel: "Current Savings",
+        updateSavingTargetLabel: "Set Saving Target",
+        saveTargetBtn: "Update Target",
+        transferSavingsTitle: "Transfer to / from Savings",
+        savingsDeductionNote: "Adding to Savings automatically deducts from Current Wallet. Withdrawing returns funds to Current Wallet.",
+        depositSavingsBtn: "+ Add to Savings (Deduct Wallet)",
+        withdrawSavingsBtn: "Withdraw to Wallet",
+        addExpenseTitle: "Add New Expense (Auto-deducts from Wallet)",
+        editExpenseTitle: "Edit Expense",
+        cancelEdit: "Cancel Edit",
+        dateLabel: "Date",
+        categoryLabel: "Category",
+        manageCatsBtn: "+ Manage",
+        notesLabel: "Notes",
+        saveExpenseBtn: "Save Expense",
+        updateExpenseBtn: "Update Expense",
+        filterViewLabel: "Show:",
+        filterMonthRange: "Selected Month Range",
+        filterWeekRange: "Selected Week Range",
+        filterAll: "All Expenses",
+        actionsLabel: "Actions",
+        wowTitle: "Week-over-Week Comparison",
+        selectedWeekLabel: "Selected Week",
+        previousWeekLabel: "Previous 7 Days",
+        momTitle: "Month-over-Month Comparison",
+        selectedMonthLabel: "Selected Month",
+        previousMonthLabel: "Previous Month",
+        spendingByCategoryTitle: "Spending by Category (Selected Month)",
+        monthlyTrendTitle: "12-Month Spending Overview",
+        exportReportsTitle: "Export Financial Reports",
+        exportReportsSub: "Download mobile-ready CSV spreadsheets or printable summary reports for Daily, Weekly, or Monthly periods.",
+        periodDaily: "Daily (Today)",
+        periodWeekly: "Weekly (Selected Week Range)",
+        periodMonthly: "Monthly (Selected Month Range)",
+        downloadCsvBtn: "Download CSV",
+        downloadSummaryBtn: "Download Summary (.html)",
+        cloudSyncTitle: "Firebase Cloud Sync",
+        signedInAs: "Signed in as:",
+        realtimeSyncActive: "● Real-time Firestore sync active",
+        signOutBtn: "Sign Out",
+        authDescription: "Sign in or create an account to automatically sync your wallet, savings, expenses, and preferences across all devices.",
+        emailLabel: "Email",
+        passwordLabel: "Password",
+        signInBtn: "Sign In",
+        createAccountBtn: "Create Account",
+        forgotPasswordBtn: "Send Password Reset Email",
+        manageCategoriesTitle: "Manage Expense Categories",
+        addBtn: "Add",
+        customizeWidgetsTitle: "Customize Dashboard Widgets",
+        customizeWidgetsSub: "Toggle cards and sections on or off. Saved automatically.",
+        widgetSummaryCards: "Summary KPI Cards",
+        widgetTargetsRanges: "Date Ranges & Spending Targets",
+        widgetComparisons: "Week-over-Week & Month-over-Month",
+        widgetCharts: "Analytics Charts",
+        widgetExports: "Export Reports Bar",
+        weeklyAlertMsg: "Weekly Spending exceeded Target Week Spending!",
+        monthlyAlertMsg: "Monthly Spending exceeded Target Monthly Spending!",
+        noExpensesMsg: "No expenses recorded for this period.",
+        noActivityMsg: "No wallet transactions yet.",
+        months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+      },
+      ar: {
+        appTitle: "الإدارة المالية الشخصية",
+        guestMode: "معاينة محلية (غير مسجل)",
+        cloudSynced: "متزامن سحابياً",
+        themeLight: "فاتح نقي",
+        themeDark: "داكن أردوازي",
+        themeEmerald: "زمردي ليلي",
+        themeSand: "رملي دافئ",
+        customizeWidgets: "العناصر",
+        signInSync: "تسجيل الدخول / مزامنة",
+        accountBtn: "الحساب",
+        yearLabel: "السنة:",
+        currentWallet: "المحفظة الحالية",
+        walletSubtext: "الرصيد المتاح حالياً",
+        savings: "المدخرات",
+        savingTarget: "هدف الادخار:",
+        weeklySpending: "الإنفاق الأسبوعي",
+        targetWeekSpending: "حد الإنفاق الأسبوعي:",
+        monthlySpending: "الإنفاق الشهري",
+        targetMonthlySpending: "حد الإنفاق الشهري:",
+        dateRangesAndTargets: "نطاقات التواريخ المخصصة وأهداف الإنفاق",
+        autoSetMonthDates: "تعبئة تواريخ الشهر المحدد تلقائياً",
+        weekRangeLabel: "نطاق الأسبوع (البداية – النهاية)",
+        monthRangeLabel: "نطاق الشهر (البداية – النهاية)",
+        tabWallet: "💳 المحفظة الحالية",
+        tabSavings: "🏦 المدخرات",
+        tabExpenses: "🧾 المصروفات",
+        manageWalletTitle: "إضافة رصيد أو تعيين رصيد المحفظة",
+        amountLabel: "المبلغ",
+        noteLabel: "ملاحظة (اختياري)",
+        addFundsBtn: "+ إضافة رصيد للمحفظة",
+        setExactBalanceBtn: "تعيين الرصيد الدقيق",
+        walletLedgerSummary: "ملخص حركة المحفظة",
+        totalAddedLabel: "إجمالي الإيداعات:",
+        deductedExpensesLabel: "المخصوم للمصروفات:",
+        deductedSavingsLabel: "المحول للمدخرات:",
+        recentWalletActivity: "أحدث حركات المحفظة",
+        savingsProgressTitle: "تقدم هدف الادخار",
+        currentSavingsLabel: "المدخرات الحالية",
+        updateSavingTargetLabel: "تحديد هدف الادخار",
+        saveTargetBtn: "تحديث الهدف",
+        transferSavingsTitle: "التحويل من وإلى المدخرات",
+        savingsDeductionNote: "الإضافة إلى المدخرات تخصم تلقائياً من المحفظة الحالية، والسحب يعيد المبلغ للمحفظة.",
+        depositSavingsBtn: "+ إضافة للمدخرات (خصم من المحفظة)",
+        withdrawSavingsBtn: "سحب إلى المحفظة",
+        addExpenseTitle: "إضافة مصروف جديد (يُخصم تلقائياً من المحفظة)",
+        editExpenseTitle: "تعديل المصروف",
+        cancelEdit: "إلغاء التعديل",
+        dateLabel: "التاريخ",
+        categoryLabel: "الفئة",
+        manageCatsBtn: "+ إدارة",
+        notesLabel: "ملاحظات",
+        saveExpenseBtn: "حفظ المصروف",
+        updateExpenseBtn: "تحديث المصروف",
+        filterViewLabel: "عرض:",
+        filterMonthRange: "نطاق الشهر المحدد",
+        filterWeekRange: "نطاق الأسبوع المحدد",
+        filterAll: "جميع المصروفات",
+        actionsLabel: "إجراءات",
+        wowTitle: "مقارنة أسبوع بأسبوع",
+        selectedWeekLabel: "الأسبوع المحدد",
+        previousWeekLabel: "الـ 7 أيام السابقة",
+        momTitle: "مقارنة شهر بشهر",
+        selectedMonthLabel: "الشهر المحدد",
+        previousMonthLabel: "الشهر السابق",
+        spendingByCategoryTitle: "الإنفاق حسب الفئة (الشهر المحدد)",
+        monthlyTrendTitle: "نظرة عامة على الإنفاق (12 شهراً)",
+        exportReportsTitle: "تصدير التقارير المالية",
+        exportReportsSub: "تنزيل ملفات CSV أو ملخصات قابلة للطباعة للفترة اليومية أو الأسبوعية أو الشهرية.",
+        periodDaily: "يومي (اليوم)",
+        periodWeekly: "أسبوعي (نطاق الأسبوع المحدد)",
+        periodMonthly: "شهري (نطاق الشهر المحدد)",
+        downloadCsvBtn: "تنزيل CSV",
+        downloadSummaryBtn: "تنزيل ملخص (.html)",
+        cloudSyncTitle: "المزامنة السحابية عبر Firebase",
+        signedInAs: "مسجل الدخول باسم:",
+        realtimeSyncActive: "● المزامنة الفورية نشطة",
+        signOutBtn: "تسجيل الخروج",
+        authDescription: "سجل الدخول أو أنشئ حساباً لمزامنة محفظتك ومدخراتك ومصروفاتك تلقائياً عبر جميع أجهزتك.",
+        emailLabel: "البريد الإلكتروني",
+        passwordLabel: "كلمة المرور",
+        signInBtn: "تسجيل الدخول",
+        createAccountBtn: "إنشاء حساب",
+        forgotPasswordBtn: "إرسال رابط إعادة تعيين كلمة المرور",
+        manageCategoriesTitle: "إدارة فئات المصروفات",
+        addBtn: "إضافة",
+        customizeWidgetsTitle: "تخصيص عناصر لوحة التحكم",
+        customizeWidgetsSub: "إظهار أو إخفاء البطاقات والأقسام. يتم الحفظ تلقائياً.",
+        widgetSummaryCards: "بطاقات الملخص الرئيسية",
+        widgetTargetsRanges: "نطاقات التواريخ وأهداف الإنفاق",
+        widgetComparisons: "مقارنات الأسبوع والشهر",
+        widgetCharts: "الرسوم البيانية التحليلية",
+        widgetExports: "شريط تصدير التقارير",
+        weeklyAlertMsg: "تجاوز الإنفاق الأسبوعي حد الإنفاق الأسبوعي المحدد!",
+        monthlyAlertMsg: "تجاوز الإنفاق الشهري حد الإنفاق الشهري المحدد!",
+        noExpensesMsg: "لا توجد مصروفات مسجلة في هذه الفترة.",
+        noActivityMsg: "لا توجد حركات في المحفظة بعد.",
+        months: ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+      }
+    };
+
+    const t = (key) => i18n[state.language]?.[key] || i18n.en[key] || key;
+
+    // ==================== CURRENCY CONVERSION HELPERS ====================
+    // All values in `state` are stored in base SAR for lossless switching.
+    function toDisplayAmount(sarAmount) {
+      const rate = Number(state.exchangeRate) > 0 ? Number(state.exchangeRate) : 3.75;
+      return state.currency === "USD" ? sarAmount / rate : sarAmount;
+    }
+
+    function fromInputToSAR(inputAmount) {
+      const val = Number(inputAmount) || 0;
+      const rate = Number(state.exchangeRate) > 0 ? Number(state.exchangeRate) : 3.75;
+      return state.currency === "USD" ? val * rate : val;
+    }
+
+    function formatMoney(sarAmount) {
+      const converted = toDisplayAmount(sarAmount || 0);
+      return `${converted.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${state.currency}`;
+    }
+
+    // ==================== PERSISTENCE (LOCAL + FIRESTORE) ====================
+    function saveLocal() {
+      localStorage.setItem("finance_dashboard_guest_v1", JSON.stringify(state));
+    }
+
+    function loadLocal() {
+      try {
+        const raw = localStorage.getItem("finance_dashboard_guest_v1");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state = { ...createDefaultState(), ...parsed };
+        }
+      } catch (e) {
+        console.warn("Local load failed", e);
+      }
+    }
+
+    let cloudSaveTimer = null;
+    function persistState() {
+      state.updatedAt = Date.now();
+      saveLocal();
+      if (currentUser && !isApplyingRemote) {
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = setTimeout(async () => {
+          try {
+            const ref = doc(db, "users", currentUser.uid, "financeState", "main");
+            await setDoc(ref, state, { merge: true });
+          } catch (err) {
+            console.error("Firestore save error:", err);
+          }
+        }, 250);
+      }
+      renderAll();
+    }
+
+    // ==================== CALCULATIONS ====================
+    function sumExpensesInRange(startISO, endISO) {
+      if (!startISO || !endISO) return 0;
+      return state.expenses.reduce((acc, exp) => {
+        if (exp.date >= startISO && exp.date <= endISO) {
+          return acc + (Number(exp.amount) || 0);
+        }
+        return acc;
+      }, 0);
+    }
+
+    function shiftDateISO(isoStr, daysDelta) {
+      const [y, m, d] = isoStr.split("-").map(Number);
+      const dt = new Date(y, m - 1, d);
+      dt.setDate(dt.getDate() + daysDelta);
+      return toISODate(dt);
+    }
+
+    function getPreviousMonthRange(startISO, endISO) {
+      const [y, m, d] = startISO.split("-").map(Number);
+      const prevStart = new Date(y, m - 2, 1);
+      const prevEnd = new Date(y, m - 1, 0);
+      return { start: toISODate(prevStart), end: toISODate(prevEnd) };
+    }
+
+    function calcComparison(currentVal, prevVal) {
+      const diff = currentVal - prevVal;
+      let pct = 0;
+      if (prevVal > 0) {
+        pct = ((diff / prevVal) * 100);
+      } else if (currentVal > 0) {
+        pct = 100;
+      }
+      return { diff, pct };
+    }
+
+    // ==================== RENDER FUNCTIONS ====================
+    function applyLanguageAndTheme() {
+      document.documentElement.lang = state.language;
+      document.documentElement.dir = state.language === "ar" ? "rtl" : "ltr";
+      document.documentElement.setAttribute("data-theme", state.theme);
+
+      document.getElementById("langToggleBtn").textContent = state.language === "en" ? "العربية" : "English";
+      document.getElementById("themeSelect").value = state.theme;
+      document.getElementById("currencyToggleBtn").textContent = state.currency;
+      document.getElementById("exchangeRateInput").value = state.exchangeRate;
+
+      document.querySelectorAll(".currency-code").forEach((el) => {
+        el.textContent = state.currency;
+      });
+
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        if (i18n[state.language][key]) {
+          el.textContent = i18n[state.language][key];
+        }
+      });
+
+      // Sync status label
+      const syncText = document.getElementById("syncStatusText");
+      const syncDot = document.getElementById("syncDot");
+      const authBtnLabel = document.getElementById("authBtnLabel");
+      if (currentUser) {
+        syncText.textContent = `${t("cloudSynced")} (${currentUser.email})`;
+        syncDot.className = "inline-block w-2 h-2 rounded-full bg-emerald-400";
+        authBtnLabel.textContent = t("accountBtn");
+      } else {
+        syncText.textContent = t("guestMode");
+        syncDot.className = "inline-block w-2 h-2 rounded-full bg-amber-400";
+        authBtnLabel.textContent = t("signInSync");
+      }
+    }
+
+    function renderYearAndMonths() {
+      const yearSelect = document.getElementById("yearSelect");
+      if (yearSelect.options.length === 0) {
+        const baseYear = today.getFullYear();
+        for (let y = baseYear - 3; y <= baseYear + 3; y++) {
+          const opt = document.createElement("option");
+          opt.value = y;
+          opt.textContent = y;
+          yearSelect.appendChild(opt);
+        }
+      }
+      yearSelect.value = state.selectedYear;
+
+      const pillsContainer = document.getElementById("monthPills");
+      pillsContainer.innerHTML = "";
+      const monthNames = t("months");
+
+      monthNames.forEach((mName, idx) => {
+        const btn = document.createElement("button");
+        const isActive = idx === Number(state.selectedMonth);
+        btn.className = `px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+          isActive ? "btn-accent shadow-sm" : "theme-subtle text-muted hover:opacity-80"
+        }`;
+        btn.textContent = mName;
+        btn.onclick = () => {
+          state.selectedMonth = idx;
+          const bounds = getMonthBounds(state.selectedYear, idx);
+          state.monthStart = bounds.start;
+          state.monthEnd = bounds.end;
+          persistState();
+        };
+        pillsContainer.appendChild(btn);
+      });
+
+      document.getElementById("activeRangeBadge").textContent =
+        `${monthNames[state.selectedMonth]} ${state.selectedYear} (${state.monthStart} → ${state.monthEnd})`;
+    }
+
+    function renderKPIsAndAlerts() {
+      const weeklySpend = sumExpensesInRange(state.weekStart, state.weekEnd);
+      const monthlySpend = sumExpensesInRange(state.monthStart, state.monthEnd);
+
+      document.getElementById("kpiWallet").textContent = formatMoney(state.walletBalance);
+      document.getElementById("kpiSavings").textContent = formatMoney(state.savingsBalance);
+
+      const savPct = state.savingTarget > 0
+        ? Math.min(999, Math.round((state.savingsBalance / state.savingTarget) * 100))
+        : 0;
+      document.getElementById("kpiSavingTarget").textContent = `${formatMoney(state.savingTarget)} (${savPct}%)`;
+
+      document.getElementById("kpiWeeklySpend").textContent = formatMoney(weeklySpend);
+      document.getElementById("kpiWeeklyTarget").textContent = formatMoney(state.targetWeekSpending);
+
+      document.getElementById("kpiMonthlySpend").textContent = formatMoney(monthlySpend);
+      document.getElementById("kpiMonthlyTarget").textContent = formatMoney(state.targetMonthlySpending);
+
+      // Alert States Check
+      const weeklyExceeded = state.targetWeekSpending > 0 && weeklySpend > state.targetWeekSpending;
+      const monthlyExceeded = state.targetMonthlySpending > 0 && monthlySpend > state.targetMonthlySpending;
+
+      document.body.classList.toggle("alert-weekly", weeklyExceeded && !monthlyExceeded);
+      document.body.classList.toggle("alert-monthly", monthlyExceeded);
+
+      const alertContainer = document.getElementById("alertContainer");
+      const weeklyBanner = document.getElementById("weeklyAlertBanner");
+      const monthlyBanner = document.getElementById("monthlyAlertBanner");
+      const weeklyCard = document.getElementById("weeklyKpiCard");
+      const monthlyCard = document.getElementById("monthlyKpiCard");
+
+      alertContainer.classList.toggle("hidden", !weeklyExceeded && !monthlyExceeded);
+
+      if (weeklyExceeded) {
+        weeklyBanner.classList.remove("hidden");
+        document.getElementById("weeklyAlertText").textContent = t("weeklyAlertMsg");
+        document.getElementById("weeklyAlertDiff").textContent = `+${formatMoney(weeklySpend - state.targetWeekSpending)}`;
+        weeklyCard.style.backgroundColor = "rgba(255, 158, 125, 0.22)";
+        weeklyCard.style.borderColor = "#FF9E7D";
+      } else {
+        weeklyBanner.classList.add("hidden");
+        weeklyCard.style.backgroundColor = "";
+        weeklyCard.style.borderColor = "";
+      }
+
+      if (monthlyExceeded) {
+        monthlyBanner.classList.remove("hidden");
+        document.getElementById("monthlyAlertText").textContent = t("monthlyAlertMsg");
+        document.getElementById("monthlyAlertDiff").textContent = `+${formatMoney(monthlySpend - state.targetMonthlySpending)}`;
+        monthlyCard.style.backgroundColor = "rgba(239, 68, 68, 0.16)";
+        monthlyCard.style.borderColor = "#ef4444";
+      } else {
+        monthlyBanner.classList.add("hidden");
+        monthlyCard.style.backgroundColor = "";
+        monthlyCard.style.borderColor = "";
+      }
+    }
+
+    function renderInputs() {
+      document.getElementById("weekStartInput").value = state.weekStart;
+      document.getElementById("weekEndInput").value = state.weekEnd;
+      document.getElementById("monthStartInput").value = state.monthStart;
+      document.getElementById("monthEndInput").value = state.monthEnd;
+
+      const targetW = toDisplayAmount(state.targetWeekSpending);
+      const targetM = toDisplayAmount(state.targetMonthlySpending);
+      document.getElementById("targetWeekInput").value = targetW ? Number(targetW.toFixed(2)) : "";
+      document.getElementById("targetMonthInput").value = targetM ? Number(targetM.toFixed(2)) : "";
+
+      if (!document.getElementById("expenseDateInput").value) {
+        document.getElementById("expenseDateInput").value = toISODate(today);
+      }
+    }
+
+    function renderWalletAndSavings() {
+      const totalExpAll = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      document.getElementById("walletTotalAdded").textContent = formatMoney(state.walletTotalAdded);
+      document.getElementById("walletTotalExpenses").textContent = `- ${formatMoney(totalExpAll)}`;
+      document.getElementById("walletTotalSavings").textContent = `- ${formatMoney(state.savingsBalance)}`;
+      document.getElementById("walletSummaryBalance").textContent = formatMoney(state.walletBalance);
+
+      // Wallet History List
+      const list = document.getElementById("walletHistoryList");
+      list.innerHTML = "";
+      if (!state.walletHistory.length) {
+        list.innerHTML = `<p class="text-xs text-muted py-2">${t("noActivityMsg")}</p>`;
+      } else {
+        state.walletHistory.slice(0, 15).forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "theme-subtle rounded-xl px-3.5 py-2 flex items-center justify-between text-xs sm:text-sm";
+          const isPositive = item.amount >= 0;
+          row.innerHTML = `
+            <div>
+              <span class="font-bold">${item.note || item.type}</span>
+              <span class="text-muted text-xs ms-2">${item.date}</span>
+            </div>
+            <span class="font-extrabold ${isPositive ? "text-emerald-500" : "text-rose-500"}">
+              ${isPositive ? "+" : ""}${formatMoney(item.amount)}
+            </span>
+          `;
+          list.appendChild(row);
+        });
+      }
+
+      // Savings Tab
+      const pct = state.savingTarget > 0
+        ? Math.min(100, Math.round((state.savingsBalance / state.savingTarget) * 100))
+        : 0;
+      document.getElementById("savingsPercentBadge").textContent = `${pct}%`;
+      document.getElementById("savingsProgressBar").style.width = `${pct}%`;
+      document.getElementById("savingsCurrentDisplay").textContent = formatMoney(state.savingsBalance);
+      document.getElementById("savingsTargetDisplay").textContent = formatMoney(state.savingTarget);
+    }
+
+    function renderCategoriesAndExpenses() {
+      // Category Dropdown
+      const catSelect = document.getElementById("expenseCategorySelect");
+      const currentCatVal = catSelect.value;
+      catSelect.innerHTML = "";
+      state.categories.forEach((cat) => {
+        const opt = document.createElement("option");
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        catSelect.appendChild(opt);
+      });
+      if (currentCatVal && state.categories.some((c) => c.id === currentCatVal)) {
+        catSelect.value = currentCatVal;
+      }
+
+      // Filter Expenses
+      const filterMode = document.getElementById("expenseFilterSelect").value;
+      let filtered = [...state.expenses];
+      if (filterMode === "month") {
+        filtered = filtered.filter((e) => e.date >= state.monthStart && e.date <= state.monthEnd);
+      } else if (filterMode === "week") {
+        filtered = filtered.filter((e) => e.date >= state.weekStart && e.date <= state.weekEnd);
+      }
+      filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+      const totalFiltered = filtered.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      document.getElementById("filteredExpenseTotal").textContent = formatMoney(totalFiltered);
+
+      const tbody = document.getElementById("expensesTableBody");
+      tbody.innerHTML = "";
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-xs text-muted">${t("noExpensesMsg")}</td></tr>`;
+        return;
+      }
+
+      filtered.forEach((exp) => {
+        const catObj = state.categories.find((c) => c.id === exp.categoryId);
+        const catName = catObj ? catObj.name : "—";
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-500/5 transition";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 whitespace-nowrap font-semibold text-xs">${exp.date}</td>
+          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded-lg text-xs font-bold theme-subtle">${catName}</span></td>
+          <td class="py-2.5 px-3 text-xs text-muted">${exp.notes || "—"}</td>
+          <td class="py-2.5 px-3 text-end font-extrabold text-rose-500 whitespace-nowrap">${formatMoney(exp.amount)}</td>
+          <td class="py-2.5 px-3 text-center whitespace-nowrap space-x-2 rtl:space-x-reverse">
+            <button data-edit-exp="${exp.id}" class="text-xs font-bold underline" style="color: var(--accent);">Edit</button>
+            <button data-del-exp="${exp.id}" class="text-xs font-bold text-rose-500 underline">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Attach Edit/Delete listeners
+      tbody.querySelectorAll("[data-edit-exp]").forEach((btn) => {
+        btn.onclick = () => startEditExpense(btn.getAttribute("data-edit-exp"));
+      });
+      tbody.querySelectorAll("[data-del-exp]").forEach((btn) => {
+        btn.onclick = () => deleteExpense(btn.getAttribute("data-del-exp"));
+      });
+    }
+
+    function renderComparisons() {
+      // Week-over-Week
+      const currWeekSpend = sumExpensesInRange(state.weekStart, state.weekEnd);
+      const prevWeekStart = shiftDateISO(state.weekStart, -7);
+      const prevWeekEnd = shiftDateISO(state.weekEnd, -7);
+      const prevWeekSpend = sumExpensesInRange(prevWeekStart, prevWeekEnd);
+      const wow = calcComparison(currWeekSpend, prevWeekSpend);
+
+      document.getElementById("wowCurrentVal").textContent = formatMoney(currWeekSpend);
+      document.getElementById("wowPrevVal").textContent = formatMoney(prevWeekSpend);
+      const wowSign = wow.diff > 0 ? "+" : "";
+      document.getElementById("wowBadge").textContent = `${wowSign}${wow.pct.toFixed(1)}%`;
+      document.getElementById("wowBadge").className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+        wow.diff > 0 ? "bg-rose-500/15 text-rose-500" : "bg-emerald-500/15 text-emerald-500"
+      }`;
+      document.getElementById("wowDiffText").textContent =
+        `${wowSign}${formatMoney(wow.diff)} (${prevWeekStart} → ${prevWeekEnd})`;
+
+      // Month-over-Month
+      const currMonthSpend = sumExpensesInRange(state.monthStart, state.monthEnd);
+      const prevMonthBounds = getPreviousMonthRange(state.monthStart, state.monthEnd);
+      const prevMonthSpend = sumExpensesInRange(prevMonthBounds.start, prevMonthBounds.end);
+      const mom = calcComparison(currMonthSpend, prevMonthSpend);
+
+      document.getElementById("momCurrentVal").textContent = formatMoney(currMonthSpend);
+      document.getElementById("momPrevVal").textContent = formatMoney(prevMonthSpend);
+      const momSign = mom.diff > 0 ? "+" : "";
+      document.getElementById("momBadge").textContent = `${momSign}${mom.pct.toFixed(1)}%`;
+      document.getElementById("momBadge").className = `px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+        mom.diff > 0 ? "bg-rose-500/15 text-rose-500" : "bg-emerald-500/15 text-emerald-500"
+      }`;
+      document.getElementById("momDiffText").textContent =
+        `${momSign}${formatMoney(mom.diff)} (${prevMonthBounds.start} → ${prevMonthBounds.end})`;
+    }
+
+    function renderCharts() {
+      const isDark = state.theme === "dark" || state.theme === "emerald";
+      const textColor = isDark ? "#cbd5e1" : "#475569";
+      const gridColor = isDark ? "rgba(148, 163, 184, 0.12)" : "rgba(15, 23, 42, 0.06)";
+
+      // 1. Category Doughnut Chart (Selected Month Range)
+      const monthExpenses = state.expenses.filter(
+        (e) => e.date >= state.monthStart && e.date <= state.monthEnd
+      );
+      const catTotals = {};
+      monthExpenses.forEach((e) => {
+        const cat = state.categories.find((c) => c.id === e.categoryId);
+        const label = cat ? cat.name : "Other";
+        catTotals[label] = (catTotals[label] || 0) + toDisplayAmount(Number(e.amount) || 0);
+      });
+
+      const catLabels = Object.keys(catTotals);
+      const catValues = Object.values(catTotals);
+
+      if (categoryChartInstance) categoryChartInstance.destroy();
+      const catCtx = document.getElementById("categoryChart").getContext("2d");
+      categoryChartInstance = new Chart(catCtx, {
+        type: "doughnut",
+        data: {
+          labels: catLabels.length ? catLabels : ["0"],
+          datasets: [{
+            data: catValues.length ? catValues : [1],
+            backgroundColor: catLabels.length
+              ? ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"]
+              : ["rgba(148,163,184,0.2)"],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { color: textColor, font: { weight: "600" } } }
+          }
+        }
+      });
+
+      // 2. 12-Month Bar Chart for Selected Year
+      const monthlyTotals = Array.from({ length: 12 }, (_, mIdx) => {
+        const b = getMonthBounds(state.selectedYear, mIdx);
+        return Number(toDisplayAmount(sumExpensesInRange(b.start, b.end)).toFixed(2));
+      });
+
+      if (monthlyTrendChartInstance) monthlyTrendChartInstance.destroy();
+      const trendCtx = document.getElementById("monthlyTrendChart").getContext("2d");
+      monthlyTrendChartInstance = new Chart(trendCtx, {
+        type: "bar",
+        data: {
+          labels: t("months").map((m) => m.slice(0, 3)),
+          datasets: [{
+            label: `${t("monthlySpending")} (${state.currency})`,
+            data: monthlyTotals,
+            backgroundColor: "#3b82f6",
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: textColor }, grid: { display: false } },
+            y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+          },
+          plugins: {
+            legend: { labels: { color: textColor } }
+          }
+        }
+      });
+    }
+
+    function applyWidgetVisibility() {
+      Object.entries(state.widgetVisibility).forEach(([widgetKey, isVisible]) => {
+        document.querySelectorAll(`[data-widget="${widgetKey}"]`).forEach((el) => {
+          el.classList.toggle("hidden", !isVisible);
+        });
+        const checkbox = document.querySelector(`[data-toggle-widget="${widgetKey}"]`);
+        if (checkbox) checkbox.checked = isVisible;
+      });
+    }
+
+    function renderAll() {
+      applyLanguageAndTheme();
+      renderYearAndMonths();
+      renderKPIsAndAlerts();
+      renderInputs();
+      renderWalletAndSavings();
+      renderCategoriesAndExpenses();
+      renderComparisons();
+      renderCharts();
+      applyWidgetVisibility();
+    }
+
+    // ==================== USER INTERACTIONS & ACTIONS ====================
+
+    // Tabs Navigation
+    document.querySelectorAll(".nav-tab").forEach((tabBtn) => {
+      tabBtn.onclick = () => {
+        const target = tabBtn.getAttribute("data-tab");
+        document.querySelectorAll(".nav-tab").forEach((b) => {
+          b.style.borderColor = "transparent";
+          b.style.color = "var(--text-secondary)";
+        });
+        tabBtn.style.borderColor = "var(--accent)";
+        tabBtn.style.color = "var(--accent)";
+
+        document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+        document.getElementById(`tab-${target}`).classList.remove("hidden");
+      };
+    });
+
+    // Currency & Exchange Rate
+    document.getElementById("currencyToggleBtn").onclick = () => {
+      state.currency = state.currency === "SAR" ? "USD" : "SAR";
+      persistState();
+    };
+
+    document.getElementById("exchangeRateInput").onchange = (e) => {
+      const val = parseFloat(e.target.value);
+      if (val > 0) {
+        state.exchangeRate = val;
+        persistState();
+      }
+    };
+
+    // Theme & Language
+    document.getElementById("themeSelect").onchange = (e) => {
+      state.theme = e.target.value;
+      persistState();
+    };
+
+    document.getElementById("langToggleBtn").onclick = () => {
+      state.language = state.language === "en" ? "ar" : "en";
+      persistState();
+    };
+
+    // Year Select & Date Ranges
+    document.getElementById("yearSelect").onchange = (e) => {
+      state.selectedYear = Number(e.target.value);
+      const bounds = getMonthBounds(state.selectedYear, state.selectedMonth);
+      state.monthStart = bounds.start;
+      state.monthEnd = bounds.end;
+      persistState();
+    };
+
+    document.getElementById("resetMonthDatesBtn").onclick = () => {
+      const bounds = getMonthBounds(state.selectedYear, state.selectedMonth);
+      state.monthStart = bounds.start;
+      state.monthEnd = bounds.end;
+      persistState();
+    };
+
+    document.getElementById("weekStartInput").onchange = (e) => {
+      state.weekStart = e.target.value;
+      persistState();
+    };
+    document.getElementById("weekEndInput").onchange = (e) => {
+      state.weekEnd = e.target.value;
+      persistState();
+    };
+    document.getElementById("monthStartInput").onchange = (e) => {
+      state.monthStart = e.target.value;
+      persistState();
+    };
+    document.getElementById("monthEndInput").onchange = (e) => {
+      state.monthEnd = e.target.value;
+      persistState();
+    };
+
+    // Target Spending Inputs
+    document.getElementById("targetWeekInput").onchange = (e) => {
+      state.targetWeekSpending = Math.max(0, fromInputToSAR(e.target.value));
+      persistState();
+    };
+    document.getElementById("targetMonthInput").onchange = (e) => {
+      state.targetMonthlySpending = Math.max(0, fromInputToSAR(e.target.value));
+      persistState();
+    };
+
+    // Wallet Actions
+    document.getElementById("addWalletFundsBtn").onclick = () => {
+      const sarAmt = fromInputToSAR(document.getElementById("walletAmountInput").value);
+      if (sarAmt <= 0) return;
+      const note = document.getElementById("walletNoteInput").value.trim() || "Wallet Top-up";
+      state.walletBalance += sarAmt;
+      state.walletTotalAdded += sarAmt;
+      state.walletHistory.unshift({
+        id: crypto.randomUUID(),
+        date: toISODate(new Date()),
+        type: "Top-up",
+        note,
+        amount: sarAmt
+      });
+      document.getElementById("walletAmountInput").value = "";
+      document.getElementById("walletNoteInput").value = "";
+      persistState();
+    };
+
+    document.getElementById("setWalletExactBtn").onclick = () => {
+      const sarAmt = Math.max(0, fromInputToSAR(document.getElementById("walletAmountInput").value));
+      const diff = sarAmt - state.walletBalance;
+      state.walletBalance = sarAmt;
+      if (diff > 0) state.walletTotalAdded += diff;
+      state.walletHistory.unshift({
+        id: crypto.randomUUID(),
+        date: toISODate(new Date()),
+        type: "Balance Adjustment",
+        note: document.getElementById("walletNoteInput").value.trim() || "Set Exact Balance",
+        amount: diff
+      });
+      document.getElementById("walletAmountInput").value = "";
+      document.getElementById("walletNoteInput").value = "";
+      persistState();
+    };
+
+    // Savings Actions (Deducts from / Returns to Wallet)
+    document.getElementById("saveTargetBtn").onclick = () => {
+      state.savingTarget = Math.max(0, fromInputToSAR(document.getElementById("savingTargetInput").value));
+      document.getElementById("savingTargetInput").value = "";
+      persistState();
+    };
+
+    document.getElementById("depositSavingsBtn").onclick = () => {
+      const sarAmt = fromInputToSAR(document.getElementById("savingsTransferInput").value);
+      if (sarAmt <= 0) return;
+      const note = document.getElementById("savingsNoteInput").value.trim() || "Transfer to Savings";
+      state.savingsBalance += sarAmt;
+      state.walletBalance -= sarAmt;
+      state.walletHistory.unshift({
+        id: crypto.randomUUID(),
+        date: toISODate(new Date()),
+        type: "Savings Deposit",
+        note,
+        amount: -sarAmt
+      });
+      document.getElementById("savingsTransferInput").value = "";
+      document.getElementById("savingsNoteInput").value = "";
+      persistState();
+    };
+
+    document.getElementById("withdrawSavingsBtn").onclick = () => {
+      const sarAmt = fromInputToSAR(document.getElementById("savingsTransferInput").value);
+      if (sarAmt <= 0) return;
+      const actualWithdraw = Math.min(sarAmt, state.savingsBalance);
+      if (actualWithdraw <= 0) return;
+      const note = document.getElementById("savingsNoteInput").value.trim() || "Withdraw from Savings";
+      state.savingsBalance -= actualWithdraw;
+      state.walletBalance += actualWithdraw;
+      state.walletHistory.unshift({
+        id: crypto.randomUUID(),
+        date: toISODate(new Date()),
+        type: "Savings Withdrawal",
+        note,
+        amount: actualWithdraw
+      });
+      document.getElementById("savingsTransferInput").value = "";
+      document.getElementById("savingsNoteInput").value = "";
+      persistState();
+    };
+
+    // Expenses CRUD (Auto-deducts from / reconciles Wallet)
+    document.getElementById("expenseForm").onsubmit = (e) => {
+      e.preventDefault();
+      const date = document.getElementById("expenseDateInput").value;
+      const sarAmt = fromInputToSAR(document.getElementById("expenseAmountInput").value);
+      const categoryId = document.getElementById("expenseCategorySelect").value;
+      const notes = document.getElementById("expenseNotesInput").value.trim();
+      const editingId = document.getElementById("editingExpenseId").value;
+
+      if (!date || sarAmt <= 0) return;
+
+      if (editingId) {
+        const idx = state.expenses.findIndex((x) => x.id === editingId);
+        if (idx !== -1) {
+          const oldAmt = Number(state.expenses[idx].amount) || 0;
+          state.walletBalance += oldAmt - sarAmt; // Adjust wallet by difference
+          state.expenses[idx] = { ...state.expenses[idx], date, amount: sarAmt, categoryId, notes };
+        }
+        resetExpenseForm();
+      } else {
+        state.expenses.push({
+          id: crypto.randomUUID(),
+          date,
+          amount: sarAmt,
+          categoryId,
+          notes
+        });
+        state.walletBalance -= sarAmt; // Auto-deduct from Current Wallet
+        document.getElementById("expenseAmountInput").value = "";
+        document.getElementById("expenseNotesInput").value = "";
+      }
+
+      persistState();
+    };
+
+    function startEditExpense(id) {
+      const exp = state.expenses.find((x) => x.id === id);
+      if (!exp) return;
+      document.getElementById("editingExpenseId").value = exp.id;
+      document.getElementById("expenseDateInput").value = exp.date;
+      document.getElementById("expenseAmountInput").value = Number(toDisplayAmount(exp.amount).toFixed(2));
+      document.getElementById("expenseCategorySelect").value = exp.categoryId;
+      document.getElementById("expenseNotesInput").value = exp.notes || "";
+      document.getElementById("expenseFormTitle").textContent = t("editExpenseTitle");
+      document.getElementById("saveExpenseBtn").textContent = t("updateExpenseBtn");
+      document.getElementById("cancelEditExpenseBtn").classList.remove("hidden");
+    }
+
+    function resetExpenseForm() {
+      document.getElementById("editingExpenseId").value = "";
+      document.getElementById("expenseAmountInput").value = "";
+      document.getElementById("expenseNotesInput").value = "";
+      document.getElementById("expenseFormTitle").textContent = t("addExpenseTitle");
+      document.getElementById("saveExpenseBtn").textContent = t("saveExpenseBtn");
+      document.getElementById("cancelEditExpenseBtn").classList.add("hidden");
+    }
+
+    document.getElementById("cancelEditExpenseBtn").onclick = resetExpenseForm;
+
+    function deleteExpense(id) {
+      const idx = state.expenses.findIndex((x) => x.id === id);
+      if (idx === -1) return;
+      const removedAmt = Number(state.expenses[idx].amount) || 0;
+      state.walletBalance += removedAmt; // Refund deleted expense to Current Wallet
+      state.expenses.splice(idx, 1);
+      persistState();
+    }
+
+    document.getElementById("expenseFilterSelect").onchange = renderCategoriesAndExpenses;
+
+    // ==================== CATEGORY MANAGER MODAL ====================
+    function renderCategoriesModalList() {
+      const container = document.getElementById("categoriesList");
+      container.innerHTML = "";
+      state.categories.forEach((cat) => {
+        const row = document.createElement("div");
+        row.className = "theme-subtle rounded-xl p-2.5 flex items-center justify-between gap-2";
+        row.innerHTML = `
+          <input type="text" value="${cat.name}" data-rename-cat="${cat.id}"
+            class="bg-transparent font-bold text-sm focus:outline-none w-full" />
+          <button data-delete-cat="${cat.id}" class="text-xs font-bold text-rose-500 px-2 py-1">Delete</button>
+        `;
+        container.appendChild(row);
+      });
+
+      container.querySelectorAll("[data-rename-cat]").forEach((inp) => {
+        inp.onchange = () => {
+          const id = inp.getAttribute("data-rename-cat");
+          const newName = inp.value.trim();
+          if (!newName) return;
+          const cat = state.categories.find((c) => c.id === id);
+          if (cat) {
+            cat.name = newName;
+            persistState();
+          }
+        };
+      });
+
+      container.querySelectorAll("[data-delete-cat]").forEach((btn) => {
+        btn.onclick = () => {
+          if (state.categories.length <= 1) return;
+          const id = btn.getAttribute("data-delete-cat");
+          state.categories = state.categories.filter((c) => c.id !== id);
+          renderCategoriesModalList();
+          persistState();
+        };
+      });
+    }
+
+    document.getElementById("openCategoriesModalBtn").onclick = () => {
+      renderCategoriesModalList();
+      document.getElementById("categoriesModal").classList.remove("hidden");
+    };
+    document.getElementById("closeCategoriesModalBtn").onclick = () => {
+      document.getElementById("categoriesModal").classList.add("hidden");
+    };
+    document.getElementById("addCategoryBtn").onclick = () => {
+      const inp = document.getElementById("newCategoryNameInput");
+      const name = inp.value.trim();
+      if (!name) return;
+      state.categories.push({ id: `cat-${Date.now()}`, name });
+      inp.value = "";
+      renderCategoriesModalList();
+      persistState();
+    };
+
+    // ==================== WIDGET VISIBILITY MODAL ====================
+    document.getElementById("openVisibilityBtn").onclick = () => {
+      document.getElementById("visibilityModal").classList.remove("hidden");
+    };
+    document.getElementById("closeVisibilityModalBtn").onclick = () => {
+      document.getElementById("visibilityModal").classList.add("hidden");
+    };
+    document.querySelectorAll("[data-toggle-widget]").forEach((cb) => {
+      cb.onchange = () => {
+        const key = cb.getAttribute("data-toggle-widget");
+        state.widgetVisibility[key] = cb.checked;
+        persistState();
+      };
+    });
+
+    // ==================== EXPORT REPORTS (MOBILE-FRIENDLY CSV & HTML) ====================
+    function getReportExpenses(period) {
+      const todayStr = toISODate(new Date());
+      if (period === "daily") {
+        return {
+          title: `Daily Financial Report (${todayStr})`,
+          items: state.expenses.filter((e) => e.date === todayStr)
+        };
+      }
+      if (period === "weekly") {
+        return {
+          title: `Weekly Financial Report (${state.weekStart} to ${state.weekEnd})`,
+          items: state.expenses.filter((e) => e.date >= state.weekStart && e.date <= state.weekEnd)
+        };
+      }
+      return {
+        title: `Monthly Financial Report (${state.monthStart} to ${state.monthEnd})`,
+        items: state.expenses.filter((e) => e.date >= state.monthStart && e.date <= state.monthEnd)
+      };
+    }
+
+    function triggerMobileDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 250);
+    }
+
+    document.getElementById("exportCsvBtn").onclick = () => {
+      const period = document.getElementById("exportPeriodSelect").value;
+      const { title, items } = getReportExpenses(period);
+      const lines = [
+        `"${title}"`,
+        `"Current Wallet","${formatMoney(state.walletBalance)}"`,
+        `"Savings","${formatMoney(state.savingsBalance)}"`,
+        "",
+        `"Date","Category","Notes","Amount (${state.currency})"`
+      ];
+
+      let total = 0;
+      items.forEach((e) => {
+        const cat = state.categories.find((c) => c.id === e.categoryId)?.name || "General";
+        const amt = toDisplayAmount(Number(e.amount) || 0);
+        total += amt;
+        lines.push(`"${e.date}","${cat.replace(/"/g, '""')}","${(e.notes || "").replace(/"/g, '""')}","${amt.toFixed(2)}"`);
+      });
+      lines.push(`"","","TOTAL","${total.toFixed(2)}"`);
+
+      // UTF-8 BOM ensures Arabic text opens cleanly in Excel & mobile viewers
+      const csvBlob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      triggerMobileDownload(csvBlob, `finance-report-${period}-${toISODate(new Date())}.csv`);
+    };
+
+    document.getElementById("exportHtmlBtn").onclick = () => {
+      const period = document.getElementById("exportPeriodSelect").value;
+      const { title, items } = getReportExpenses(period);
+      const totalSAR = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+      const rowsHtml = items.map((e) => {
+        const cat = state.categories.find((c) => c.id === e.categoryId)?.name || "General";
+        return `<tr>
+          <td style="padding:8px;border-bottom:1px solid #ddd;">${e.date}</td>
+          <td style="padding:8px;border-bottom:1px solid #ddd;">${cat}</td>
+          <td style="padding:8px;border-bottom:1px solid #ddd;">${e.notes || "-"}</td>
+          <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;font-weight:bold;">${formatMoney(e.amount)}</td>
+        </tr>`;
+      }).join("");
+
+      const htmlDoc = `<!DOCTYPE html>
+<html lang="${state.language}" dir="${state.language === "ar" ? "rtl" : "ltr"}">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${title}</title>
+<style>body{font-family:system-ui,sans-serif;padding:24px;color:#111;max-width:800px;margin:auto;}
+.box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:20px;}
+table{width:100%;border-collapse:collapse;}th{background:#f1f5f9;padding:10px;text-align:left;}</style>
+</head><body>
+<h2>${title}</h2>
+<div class="box">
+  <p><strong>Current Wallet:</strong> ${formatMoney(state.walletBalance)}</p>
+  <p><strong>Savings:</strong> ${formatMoney(state.savingsBalance)} / ${formatMoney(state.savingTarget)}</p>
+  <p><strong>Period Total Spending:</strong> ${formatMoney(totalSAR)}</p>
+</div>
+<table>
+  <thead><tr><th>Date</th><th>Category</th><th>Notes</th><th style="text-align:right;">Amount</th></tr></thead>
+  <tbody>${rowsHtml || '<tr><td colspan="4" style="padding:12px;">No expenses recorded.</td></tr>'}</tbody>
+</table>
+<p style="margin-top:32px;font-size:12px;color:#64748b;">Created by Almusawij</p>
+</body></html>`;
+
+      const htmlBlob = new Blob([htmlDoc], { type: "text/html;charset=utf-8;" });
+      triggerMobileDownload(htmlBlob, `finance-summary-${period}-${toISODate(new Date())}.html`);
+    };
+
+    // ==================== FIREBASE AUTH & FIRESTORE SYNC ====================
+    const authModal = document.getElementById("authModal");
+    const authFeedback = document.getElementById("authFeedback");
+
+    function showAuthFeedback(msg, isError = false) {
+      authFeedback.textContent = msg;
+      authFeedback.className = `text-xs font-semibold ${isError ? "text-rose-500" : "text-emerald-500"}`;
+      authFeedback.classList.remove("hidden");
+    }
+
+    document.getElementById("openAuthModalBtn").onclick = () => {
+      authFeedback.classList.add("hidden");
+      authModal.classList.remove("hidden");
+    };
+    document.getElementById("closeAuthModalBtn").onclick = () => {
+      authModal.classList.add("hidden");
+    };
+
+    document.getElementById("authForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("authEmailInput").value.trim();
+      const password = document.getElementById("authPasswordInput").value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        authModal.classList.add("hidden");
+      } catch (err) {
+        showAuthFeedback(err.message, true);
+      }
+    };
+
+    document.getElementById("signUpSubmitBtn").onclick = async () => {
+      const email = document.getElementById("authEmailInput").value.trim();
+      const password = document.getElementById("authPasswordInput").value;
+      if (!email || password.length < 6) {
+        showAuthFeedback("Enter a valid email and at least 6 characters password.", true);
+        return;
+      }
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+        authModal.classList.add("hidden");
+      } catch (err) {
+        showAuthFeedback(err.message, true);
+      }
+    };
+
+    document.getElementById("resetPasswordBtn").onclick = async () => {
+      const email = document.getElementById("authEmailInput").value.trim();
+      if (!email) {
+        showAuthFeedback("Enter your email address first.", true);
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        showAuthFeedback("Password reset email sent! Check your inbox.", false);
+      } catch (err) {
+        showAuthFeedback(err.message, true);
+      }
+    };
+
+    document.getElementById("signOutBtn").onclick = async () => {
+      await signOut(auth);
+      authModal.classList.add("hidden");
+    };
+
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+
+      if (user) {
+        document.getElementById("signedInPanel").classList.remove("hidden");
+        document.getElementById("authForm").classList.add("hidden");
+        document.getElementById("userEmailDisplay").textContent = user.email;
+
+        const userDocRef = doc(db, "users", user.uid, "financeState", "main");
+        unsubscribeSnapshot = onSnapshot(userDocRef, (snap) => {
+          if (snap.exists()) {
+            isApplyingRemote = true;
+            state = { ...createDefaultState(), ...snap.data() };
+            saveLocal();
+            renderAll();
+            isApplyingRemote = false;
+          } else {
+            // Initialize cloud document with current state on first login
+            setDoc(userDocRef, state, { merge: true });
+          }
+        });
+      } else {
+        document.getElementById("signedInPanel").classList.add("hidden");
+        document.getElementById("authForm").classList.remove("hidden");
+        loadLocal();
+        renderAll();
+      }
+    });
+
+    // Initial Boot
+    loadLocal();
+    renderAll();
+  </script>
+</body>
+</html>
+z
