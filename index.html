@@ -393,7 +393,18 @@
               <button id="setWalletExactBtn" class="theme-input rounded-xl px-4 py-2 text-xs sm:text-sm font-bold hover:opacity-80 transition" data-i18n="setExactBalanceBtn">
                 Set Exact Balance
               </button>
-            </div>
+            </div><div class="flex flex-wrap gap-2 items-center w-full pt-1">
+  <button type="button" onclick="resetSelectedPeriodDeposits('day')" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold">
+    تصفير إيداعات اليوم
+  </button>
+  <button type="button" onclick="resetSelectedPeriodDeposits('month')" class="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-semibold">
+    تصفير إيداعات الشهر
+  </button>
+  <button type="button" onclick="resetSelectedPeriodDeposits('year')" class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold">
+    تصفير إيداعات السنة
+  </button>
+</div>
+
           </div>
 
           <!-- Live Deduction Summary -->
@@ -2052,7 +2063,91 @@ table{width:100%;border-collapse:collapse;}th{background:#f1f5f9;padding:10px;te
     // Initial Boot
     loadLocal();
     renderAll();
+    window.getSelectedReferenceDate = function () {
+  const dateInput = document.querySelector('input[type="date"]');
+  if (dateInput && dateInput.value) {
+    const parsed = new Date(dateInput.value + "T00:00:00");
+    if (!isNaN(parsed)) return parsed;
+  }
+
+  const monthInput = document.querySelector('input[type="month"]');
+  if (monthInput && monthInput.value) {
+    const parsed = new Date(monthInput.value + "-01T00:00:00");
+    if (!isNaN(parsed)) return parsed;
+  }
+
+  const now = new Date();
+  const yearSelect = Array.from(document.querySelectorAll("select")).find(sel =>
+    /^\d{4}$/.test((sel.value || "").trim())
+  );
+  if (yearSelect) {
+    return new Date(Number(yearSelect.value), now.getMonth(), now.getDate());
+  }
+
+  return now;
+};
+
+window.parseTransactionDate = function (item) {
+  const raw = item?.date || item?.createdAt || item?.timestamp || item?.txDate;
+  if (!raw) return null;
+  if (raw?.toDate && typeof raw.toDate === "function") return raw.toDate();
+  const d = new Date(raw);
+  return isNaN(d) ? null : d;
+};
+
+window.matchesPeriod = function (txDate, refDate, period) {
+  if (!txDate) return false;
+  const sameYear = txDate.getFullYear() === refDate.getFullYear();
+  const sameMonth = sameYear && txDate.getMonth() === refDate.getMonth();
+  const sameDay = sameMonth && txDate.getDate() === refDate.getDate();
+
+  if (period === "day") return sameDay;
+  if (period === "month") return sameMonth;
+  if (period === "year") return sameYear;
+  return false;
+};
+
+window.resetSelectedPeriodDeposits = function (period = "month") {
+  const refDate = window.getSelectedReferenceDate();
+  const periodLabels = {
+    day: `اليوم (${refDate.toISOString().slice(0, 10)})`,
+    month: `الشهر (${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, "0")})`,
+    year: `السنة (${refDate.getFullYear()})`
+  };
+
+  const label = periodLabels[period] || periodLabels.month;
+  const ok = confirm(`هل أنت متأكد من تصفير إيداعات ${label} فقط؟ لا يمكن التراجع عن هذا الإجراء.`);
+  if (!ok) return;
+
+  const list = Array.isArray(window.transactions)
+    ? window.transactions
+    : (typeof transactions !== "undefined" && Array.isArray(transactions) ? transactions : null);
+
+  if (list) {
+    const filtered = list.filter(item => {
+      if (item?.type !== "deposit") return true;
+      const txDate = window.parseTransactionDate(item);
+      return !window.matchesPeriod(txDate, refDate, period);
+    });
+
+    if (Array.isArray(window.transactions)) {
+      window.transactions = filtered;
+    } else if (typeof transactions !== "undefined" && Array.isArray(transactions)) {
+      transactions = filtered;
+    }
+  }
+
+  if (typeof saveLocal === "function") saveLocal();
+  if (typeof saveData === "function") saveData();
+  if (typeof saveToFirestore === "function") saveToFirestore();
+  if (typeof syncToCloud === "function") syncToCloud();
+  if (typeof renderAll === "function") renderAll();
+  if (typeof render === "function") render();
+  if (typeof updateUI === "function") updateUI();
+  location.reload();
+};
+
   </script>
 </body>
 </html>
-z
+
