@@ -2174,6 +2174,294 @@ window.addEventListener("DOMContentLoaded", () => {
 </script>
 
   </script>
+  <!-- Safe Smart Financial Assistant Widget -->
+<div id="smartFinAiWidget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
+  <button id="smartFinAiToggleBtn" type="button"
+    style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
+    <span>🤖</span>
+    <span id="smartFinAiBtnLabel">المساعد المالي</span>
+  </button>
+
+  <div id="smartFinAiPanel"
+    style="display:none;width:min(360px,calc(100vw - 32px));max-height:75vh;margin-bottom:12px;background:#fff;color:#111827;border-radius:20px;box-shadow:0 20px 45px rgba(0,0,0,0.22);border:1px solid #e5e7eb;overflow:hidden;flex-direction:column;">
+    <div style="padding:12px 14px;background:#9a3412;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-weight:700;font-size:13px;" id="smartFinAiTitle">🤖 المساعد المالي الذكي</div>
+      <button id="smartFinAiCloseBtn" type="button"
+        style="background:rgba(255,255,255,0.18);border:none;color:#fff;border-radius:8px;padding:2px 8px;cursor:pointer;font-weight:700;">✕</button>
+    </div>
+
+    <div id="smartFinAiQuickChips" style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;background:#fff7ed;border-bottom:1px solid #ffedd5;"></div>
+
+    <div id="smartFinAiMessages" style="padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:180px;max-height:320px;font-size:12.5px;line-height:1.55;"></div>
+
+    <form id="smartFinAiForm" style="display:flex;gap:6px;padding:10px;border-top:1px solid #e5e7eb;background:#fafafa;">
+      <input id="smartFinAiInput" type="text" autocomplete="off"
+        style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:12.5px;outline:none;" />
+      <button id="smartFinAiSendBtn" type="submit"
+        style="padding:8px 12px;border:none;border-radius:10px;background:#c2410c;color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;"></button>
+    </form>
+  </div>
+</div>
+
+<script>
+window.addEventListener("DOMContentLoaded", function () {
+  try {
+    const sfIsAr = () => {
+      const dir = (document.documentElement.dir || document.body.dir || "").toLowerCase();
+      const lang = (document.documentElement.lang || "").toLowerCase();
+      return dir === "rtl" || lang.startsWith("ar") || (document.body?.innerText || "").includes("إجمالي الإيداعات");
+    };
+
+    const sfTxList = () => {
+      const pools = [
+        window.transactions,
+        window.state?.transactions,
+        typeof state !== "undefined" ? state?.transactions : null
+      ].filter(Array.isArray);
+      return pools[0] || [];
+    };
+
+    const sfDate = (item) => {
+      try {
+        if (typeof window.parseTransactionDate === "function") {
+          const parsed = window.parseTransactionDate(item);
+          if (parsed instanceof Date && !isNaN(parsed.getTime())) return parsed;
+        }
+      } catch (_) {}
+      const raw = item?.date || item?.createdAt || item?.timestamp || item?.txDate;
+      const d = raw ? new Date(raw) : new Date();
+      return isNaN(d.getTime()) ? new Date() : d;
+    };
+
+    const sfAmt = (item) => {
+      const num = Number(item?.amount ?? item?.value ?? 0);
+      return Number.isFinite(num) ? Math.abs(num) : 0;
+    };
+
+    const sfKind = (item) => {
+      const t = String(item?.type || item?.kind || item?.categoryType || "").toLowerCase();
+      if (["deposit", "topup", "top-up", "add", "income", "wallet_add"].some(k => t.includes(k))) return "deposit";
+      if (["expense", "withdraw", "spend", "deduct", "payment"].some(k => t.includes(k))) return "expense";
+      if (Number(item?.amount) < 0) return "expense";
+      return "other";
+    };
+
+    const sfMoney = (n) => {
+      const val = Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return sfIsAr() ? `${val} SAR` : `SAR ${val}`;
+    };
+
+    const sfAnalyze = () => {
+      const list = sfTxList();
+      const now = new Date();
+      const cy = now.getFullYear(), cm = now.getMonth();
+      const prev = new Date(cy, cm - 1, 1);
+      const py = prev.getFullYear(), pm = prev.getMonth();
+
+      let depTotal = 0, expTotal = 0, cmExp = 0, pmExp = 0, cmDep = 0, wknd = 0, wkdy = 0, smCnt = 0, smSum = 0;
+      const cats = {};
+      const dows = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+      const doms = {};
+
+      list.forEach((it) => {
+        const k = sfKind(it), a = sfAmt(it), dt = sfDate(it);
+        const y = dt.getFullYear(), m = dt.getMonth(), dow = dt.getDay(), dom = dt.getDate();
+
+        if (k === "deposit") {
+          depTotal += a;
+          if (y === cy && m === cm) cmDep += a;
+        } else if (k === "expense") {
+          expTotal += a;
+          if (y === cy && m === cm) cmExp += a;
+          if (y === py && m === pm) pmExp += a;
+
+          const lbl = String(it?.category || it?.note || it?.title || it?.description || (sfIsAr() ? "عام" : "General")).trim();
+          cats[lbl] = (cats[lbl] || 0) + a;
+          dows[dow] = (dows[dow] || 0) + a;
+          doms[dom] = (doms[dom] || 0) + a;
+
+          if (dow === 5 || dow === 6) wknd += a;
+          else wkdy += a;
+
+          if (a > 0 && a <= 50) { smCnt += 1; smSum += a; }
+        }
+      });
+
+      const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0] || null;
+      const topDowArr = Object.entries(dows).sort((a, b) => b[1] - a[1])[0];
+      const topDomArr = Object.entries(doms).sort((a, b) => b[1] - a[1])[0] || null;
+
+      const elapsed = Math.max(1, now.getDate());
+      const totalDays = new Date(cy, cm + 1, 0).getDate();
+      const remDays = Math.max(0, totalDays - elapsed);
+
+      const projExp = cmExp + (cmExp / elapsed) * remDays;
+      const estSave = cmDep - projExp;
+      const saveRate = depTotal > 0 ? Math.max(0, ((depTotal - expTotal) / depTotal) * 100) : 0;
+
+      return {
+        depTotal, expTotal, cmExp, pmExp, cmDep, wknd, wkdy, smCnt, smSum,
+        topCat,
+        topDow: topDowArr ? { dow: Number(topDowArr[0]), sum: topDowArr[1] } : null,
+        topDom: topDomArr ? { dom: Number(topDomArr[0]), sum: topDomArr[1] } : null,
+        projExp, estSave, saveRate, remDays
+      };
+    };
+
+    const arDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+    const enDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    const sfReply = (rawQ) => {
+      const q = String(rawQ || "").trim().toLowerCase();
+      const ar = sfIsAr();
+      const a = sfAnalyze();
+      const curSaved = Math.max(0, a.depTotal - a.expTotal);
+
+      const numMatch = q.match(/(\d+(?:[.,]\d+)?)/);
+      const goalVal = numMatch ? Number(numMatch[1].replace(/,/g, "")) : null;
+
+      if (goalVal && (q.includes("هدف") || q.includes("اوصل") || q.includes("أوصل") || q.includes("اجمع") || q.includes("أجمع") || q.includes("goal") || q.includes("save") || q.includes("reach"))) {
+        const rem = Math.max(0, goalVal - curSaved);
+        const pace = Math.max(a.estSave, a.cmDep - a.cmExp, 500);
+        const mos = rem === 0 ? 0 : Math.ceil(rem / pace);
+        const wks = rem === 0 ? 0 : Math.ceil((rem / pace) * 4.33);
+        if (ar) {
+          return rem === 0
+            ? `ما شاء الله! مدخراتك الحالية (${sfMoney(curSaved)}) غطت هدفك (${sfMoney(goalVal)}).`
+            : `🎯 لهدف ${sfMoney(goalVal)}:\n• المبلغ المتبقي: ${sfMoney(rem)} (مدخراتك الحالية: ${sfMoney(curSaved)}).\n• المدة التقديرية: حوالي ${mos} شهر (${wks} أسبوع) بمعدل ادخار تقديري ${sfMoney(pace)}/شهر.`;
+        }
+        return rem === 0
+          ? `Great! Your current savings (${sfMoney(curSaved)}) already reach ${sfMoney(goalVal)}.`
+          : `🎯 Goal ${sfMoney(goalVal)}:\n• Remaining: ${sfMoney(rem)} (current: ${sfMoney(curSaved)}).\n• Estimated duration: ~${mos} months (~${wks} weeks) at ~${sfMoney(pace)}/month.`;
+      }
+
+      if (q.includes("أكثر مصاريف") || q.includes("اكثر مصاريف") || q.includes("أصرف") || q.includes("اصرف") || q.includes("فئة") || q.includes("category") || q.includes("top")) {
+        if (!a.topCat) return ar ? "لا توجد مصروفات مسجلة كافية." : "Not enough expense data.";
+        const pct = a.expTotal > 0 ? ((a.topCat[1] / a.expTotal) * 100).toFixed(1) : "0.0";
+        return ar
+          ? `📌 أكثر بند/فئة تصرف فيها: **${a.topCat[0]}** بقيمة ${sfMoney(a.topCat[1])} (${pct}% من المصروفات).`
+          : `📌 Top spending item/category: **${a.topCat[0]}** at ${sfMoney(a.topCat[1])} (${pct}% of expenses).`;
+      }
+
+      if (q.includes("يوم") || q.includes("day")) {
+        if (!a.topDow || a.topDow.sum === 0) return ar ? "لا توجد بيانات كافية لأيام الصرف." : "Not enough day data.";
+        const dTxt = ar ? arDays[a.topDow.dow] : enDays[a.topDow.dow];
+        const domTxt = a.topDom ? (ar ? ` وأعلى تاريخ في الشهر كان يوم **${a.topDom.dom}** (${sfMoney(a.topDom.sum)}).` : ` Highest day of month: **${a.topDom.dom}** (${sfMoney(a.topDom.sum)}).`) : "";
+        return ar
+          ? `📅 أكثر يوم في الأسبوع تصرف فيه: **${dTxt}** بإجمالي ${sfMoney(a.topDow.sum)}.${domTxt}`
+          : `📅 Peak day of week: **${dTxt}** (${sfMoney(a.topDow.sum)}).${domTxt}`;
+      }
+
+      if (q.includes("مقارن") || q.includes("الشهر الماضي") || q.includes("compare") || q.includes("last month")) {
+        const diff = a.cmExp - a.pmExp;
+        const pct = a.pmExp > 0 ? ((diff / a.pmExp) * 100).toFixed(1) : null;
+        if (ar) {
+          const st = diff > 0 ? `زيادة ${sfMoney(diff)}${pct ? ` (+${pct}%)` : ""}` : diff < 0 ? `انخفاض ${sfMoney(Math.abs(diff))}${pct ? ` (${pct}%)` : ""}` : "متقاربة";
+          return `📊 مقارنة مصروفات الشهر الحالي بالماضي:\n• الشهر الحالي: ${sfMoney(a.cmExp)}\n• الشهر الماضي: ${sfMoney(a.pmExp)}\n• الفرق: ${st}\n• نهاية الأسبوع مقابل بقية الأسبوع: ${sfMoney(a.wknd)} vs ${sfMoney(a.wkdy)}.`;
+        }
+        return `📊 This Month vs Last Month:\n• Current: ${sfMoney(a.cmExp)}\n• Previous: ${sfMoney(a.pmExp)}\n• Weekend vs Weekdays: ${sfMoney(a.wknd)} vs ${sfMoney(a.wkdy)}.`;
+      }
+
+      if (q.includes("أوفر") || q.includes("اوفر") || q.includes("أجمع") || q.includes("اجمع") || q.includes("وفر") || q.includes("save") || q.includes("saving")) {
+        const extraSave = a.cmExp * 0.15 + a.smSum * 0.3;
+        if (ar) {
+          return `💰 توقع هذا الشهر (${a.remDays} يوم متبقي):\n• الادخار/الفائض المتوقع بنهاية الشهر: ${sfMoney(a.estSave)}\n• نسبة الادخار الإجمالية: ${a.saveRate.toFixed(1)}%\n• بتخفيف 15% من الصرف وتقليل المصروفات الصغيرة (${a.smCnt} عملية بـ ${sfMoney(a.smSum)}) يمكن توفير إضافي ~**${sfMoney(extraSave)}**.`;
+        }
+        return `💰 This Month Outlook (${a.remDays} days left):\n• Projected monthly saving: ${sfMoney(a.estSave)}\n• Savings rate: ${a.saveRate.toFixed(1)}%\n• Trimming 15% + small items (${a.smCnt} tx, ${sfMoney(a.smSum)}) can add ~**${sfMoney(extraSave)}**.`;
+      }
+
+      return ar
+        ? `✨ ملخص سريع:\n• الإيداعات: ${sfMoney(a.depTotal)} | المصروفات: ${sfMoney(a.expTotal)}\n• أكثر فئة صرف: ${a.topCat ? `${a.topCat[0]} (${sfMoney(a.topCat[1])})` : "غير متوفر"}\n• التوفير المتوقع هذا الشهر: ${sfMoney(a.estSave)}\nجرّب: "أكثر مصاريفي"، "أكثر يوم أصرف فيه"، "مقارنة بالشهر الماضي"، "كم أقدر أوفر"، أو "هدف 10000".`
+        : `✨ Quick Summary:\n• Top-ups: ${sfMoney(a.depTotal)} | Expenses: ${sfMoney(a.expTotal)}\n• Top category: ${a.topCat ? `${a.topCat[0]} (${sfMoney(a.topCat[1])})` : "N/A"}\n• Projected saving: ${sfMoney(a.estSave)}\nTry: "Top spend", "Peak day", "Compare last month", "How much can I save", or "Goal 10000".`;
+    };
+
+    const sfRenderLang = () => {
+      const ar = sfIsAr();
+      const box = document.getElementById("smartFinAiWidget");
+      if (box) box.style.direction = ar ? "rtl" : "ltr";
+
+      const lbl = document.getElementById("smartFinAiBtnLabel");
+      const ttl = document.getElementById("smartFinAiTitle");
+      const inp = document.getElementById("smartFinAiInput");
+      const snd = document.getElementById("smartFinAiSendBtn");
+      const chp = document.getElementById("smartFinAiQuickChips");
+
+      if (lbl) lbl.textContent = ar ? "المساعد المالي" : "AI Advisor";
+      if (ttl) ttl.textContent = ar ? "🤖 المساعد المالي الذكي" : "🤖 Smart Financial Advisor";
+      if (inp) inp.placeholder = ar ? "اسأل أو اكتب: هدف 10000..." : "Ask or type: goal 10000...";
+      if (snd) snd.textContent = ar ? "إرسال" : "Send";
+
+      const quick = ar
+        ? ["أكثر مصاريفي", "أكثر يوم أصرف فيه", "مقارنة بالشهر الماضي", "كم أقدر أوفر", "هدف 10000"]
+        : ["Top spend", "Peak day", "Compare last month", "How much can I save", "Goal 10000"];
+
+      if (chp) {
+        chp.innerHTML = "";
+        quick.forEach((t) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = t;
+          btn.style.cssText = "padding:4px 8px;border-radius:999px;border:1px solid #fdba74;background:#fff;color:#9a3412;font-size:11px;font-weight:600;cursor:pointer;";
+          btn.addEventListener("click", () => sfSend(t));
+          chp.appendChild(btn);
+        });
+      }
+    };
+
+    const sfAddMsg = (txt, isUser = false) => {
+      const msgs = document.getElementById("smartFinAiMessages");
+      if (!msgs) return;
+      const el = document.createElement("div");
+      el.style.cssText = isUser
+        ? "align-self:flex-end;background:#c2410c;color:#fff;padding:8px 11px;border-radius:14px 14px 4px 14px;max-width:85%;white-space:pre-line;"
+        : "align-self:flex-start;background:#f3f4f6;color:#111827;padding:8px 11px;border-radius:14px 14px 14px 4px;max-width:90%;white-space:pre-line;";
+      el.innerHTML = String(txt).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+      msgs.appendChild(el);
+      msgs.scrollTop = msgs.scrollHeight;
+    };
+
+    const sfSend = (txt) => {
+      const clean = String(txt || "").trim();
+      if (!clean) return;
+      sfAddMsg(clean, true);
+      setTimeout(() => sfAddMsg(sfReply(clean), false), 100);
+    };
+
+    sfRenderLang();
+    sfAddMsg(
+      sfIsAr()
+        ? "أهلاً بك! اختر سؤالاً سريعاً أو اكتب سؤالك عن مصاريفك، أيام الصرف، المقارنات، التوفير، أو هدف الادخار."
+        : "Welcome! Pick a quick chip or ask about spending, peak days, comparisons, savings, or a goal.",
+      false
+    );
+
+    const tgl = document.getElementById("smartFinAiToggleBtn");
+    const pnl = document.getElementById("smartFinAiPanel");
+    const cls = document.getElementById("smartFinAiCloseBtn");
+    const frm = document.getElementById("smartFinAiForm");
+    const inp = document.getElementById("smartFinAiInput");
+
+    tgl?.addEventListener("click", () => {
+      if (!pnl) return;
+      sfRenderLang();
+      pnl.style.display = pnl.style.display === "none" ? "flex" : "none";
+    });
+    cls?.addEventListener("click", () => {
+      if (pnl) pnl.style.display = "none";
+    });
+    frm?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!inp) return;
+      const v = inp.value;
+      inp.value = "";
+      sfSend(v);
+    });
+
+    setInterval(sfRenderLang, 800);
+  } catch (err) {
+    console.warn("Smart AI widget safe catch:", err);
+  }
+});
+</script>
 </body>
 </html>
-
