@@ -2147,9 +2147,15 @@ window.resetSelectedPeriodDeposits = function (period = "month") {
   location.reload();
 };
 window.updateResetDepositButtonsLang = function () {
+  const dir = (document.documentElement.dir || document.body.dir || "").toLowerCase();
+  const lang = (document.documentElement.lang || "").toLowerCase();
+  const bodyText = document.body ? document.body.innerText : "";
+
   const isAr =
-    (document.documentElement.lang || "").toLowerCase().startsWith("ar") ||
-    !document.body.innerText.includes("Wallet Flow Overview");
+    dir === "rtl" ||
+    lang.startsWith("ar") ||
+    bodyText.includes("إجمالي الإيداعات") ||
+    bodyText.includes("المحفظة الحالية");
 
   const dayBtn = document.getElementById("resetDayDepositsBtn");
   const monthBtn = document.getElementById("resetMonthDepositsBtn");
