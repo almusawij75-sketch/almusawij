@@ -2171,5 +2171,232 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
+  <!-- Smart Financial Assistant Widget v6 (Safe Mode) -->
+<div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
+  <button id="sf2ToggleBtn" type="button"
+    style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
+    <span>🤖</span>
+    <span id="sf2BtnLabel">المساعد المالي</span>
+  </button>
+
+  <div id="sf2Panel"
+    style="display:none;width:min(375px,calc(100vw - 32px));max-height:78vh;margin-bottom:12px;background:#fff;color:#111827;border-radius:20px;box-shadow:0 20px 45px rgba(0,0,0,0.22);border:1px solid #e5e7eb;overflow:hidden;flex-direction:column;">
+    <div style="padding:12px 14px;background:#9a3412;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-weight:700;font-size:13px;" id="sf2Title">🤖 مساعد جواد المالي</div>
+      <button id="sf2CloseBtn" type="button"
+        style="background:rgba(255,255,255,0.18);border:none;color:#fff;border-radius:8px;padding:2px 8px;cursor:pointer;font-weight:700;">✕</button>
+    </div>
+
+    <div id="sf2QuickChips" style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;background:#fff7ed;border-bottom:1px solid #ffedd5;"></div>
+
+    <div id="sf2Messages" style="padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:190px;max-height:330px;font-size:12.5px;line-height:1.55;"></div>
+
+    <form id="sf2Form" style="display:flex;gap:6px;padding:10px;border-top:1px solid #e5e7eb;background:#fafafa;">
+      <input id="sf2Input" type="text" autocomplete="off"
+        style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:12.5px;outline:none;" />
+      <button id="sf2SendBtn" type="submit"
+        style="padding:8px 12px;border:none;border-radius:10px;background:#c2410c;color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;"></button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  function initSf2() {
+    try {
+      const normDigits = (s) =>
+        String(s || "")
+          .replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)])
+          .replace(/[۰-۹]/g, (d) => "0123456789"["۰۱۲۳۴۵۶۷۸۹".indexOf(d)]);
+
+      const isAr = () => {
+        const dir = ((document.documentElement && document.documentElement.dir) || (document.body && document.body.dir) || "").toLowerCase();
+        const lang = ((document.documentElement && document.documentElement.lang) || "").toLowerCase();
+        return dir === "rtl" || lang.indexOf("ar") === 0 || ((document.body && document.body.innerText) || "").indexOf("الإدارة المالية") !== -1;
+      };
+
+      const fmtMoney = (n) => {
+        const val = Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return isAr() ? val + " SAR" : "SAR " + val;
+      };
+
+      const parseGoal = (q) => {
+        const m = q.match(/(\d+(?:[.,]\d+)?)\s*(الف|ألف|الاف|آلاف|k)?/i);
+        if (!m) return null;
+        let val = Number(String(m[1]).replace(/,/g, ""));
+        if (!isFinite(val)) return null;
+        if (m[2] && ["الف", "ألف", "الاف", "آلاف", "k"].indexOf(String(m[2]).toLowerCase()) !== -1) {
+          val = val * 1000;
+        }
+        return val;
+      };
+
+      const parseMonths = (q) => {
+        const clamp = (x) => {
+          const n = Number(x);
+          if (!isFinite(n) || n <= 0) return null;
+          return Math.min(60, Math.max(1, Math.round(n)));
+        };
+
+        if (q.indexOf("خمس سنوات") !== -1 || q.indexOf("خمس سنين") !== -1 || q.indexOf("5 سنوات") !== -1 || q.indexOf("5 سنين") !== -1 || q.indexOf("5 years") !== -1) return 60;
+        if (q.indexOf("اربع سنوات") !== -1 || q.indexOf("أربع سنوات") !== -1 || q.indexOf("اربع سنين") !== -1 || q.indexOf("أربع سنين") !== -1 || q.indexOf("4 سنوات") !== -1 || q.indexOf("4 years") !== -1) return 48;
+        if (q.indexOf("ثلاث سنوات") !== -1 || q.indexOf("ثلاث سنين") !== -1 || q.indexOf("3 سنوات") !== -1 || q.indexOf("3 سنين") !== -1 || q.indexOf("3 years") !== -1) return 36;
+        if (q.indexOf("سنتين") !== -1 || q.indexOf("سنتان") !== -1 || q.indexOf("two years") !== -1 || q.indexOf("2 years") !== -1 || q.indexOf("2 year") !== -1) return 24;
+
+        const ym = q.match(/(\d+)\s*(سنه|سنة|سنوات|سنين|year|years)/);
+        if (ym) return clamp(Number(ym[1]) * 12);
+        if (q.indexOf("سنه") !== -1 || q.indexOf("سنة") !== -1 || q.indexOf("year") !== -1) return 12;
+
+        if (q.indexOf("شهرين") !== -1 || q.indexOf("شهران") !== -1 || q.indexOf("two months") !== -1) return 2;
+        const mm = q.match(/(\d+)\s*(شهر|اشهر|أشهر|شهور|month|months)/);
+        if (mm) return clamp(Number(mm[1]));
+
+        return null;
+      };
+
+      const reply = (rawQ) => {
+        const q = normDigits(String(rawQ || "").trim().toLowerCase());
+        const ar = isAr();
+        const goalVal = parseGoal(q);
+        const monthsVal = parseMonths(q);
+
+        if (goalVal || monthsVal || q.indexOf("فترات") !== -1 || q.indexOf("مدة") !== -1 || q.indexOf("سنوات") !== -1 || q.indexOf("شهور") !== -1) {
+          if (!goalVal) {
+            const mNote = monthsVal ? " (المدة المحددة: **" + monthsVal + " شهر**)" : "";
+            return ar
+              ? "تحت أمرك يا جواد" + mNote + "، اكتب المبلغ المطلوب معه؛ مثلاً: «هدف ٢٠٠ ألف لمدة سنتين»."
+              : "At your service Jawad, include the target amount, e.g. «goal 200000 in 2 years».";
+          }
+
+          if (monthsVal && monthsVal > 0) {
+            const perMonth = goalVal / monthsVal;
+            const perWeek = perMonth / 4.33;
+            return ar
+              ? "حاضر يا جواد 🎯 لهدف **" + fmtMoney(goalVal) + "** خلال **" + monthsVal + " شهر**:\n• المطلوب ادخاره شهرياً: **" + fmtMoney(perMonth) + "**\n• أو أسبوعياً تقريباً: **" + fmtMoney(perWeek) + "**"
+              : "Right away Jawad 🎯 For **" + fmtMoney(goalVal) + "** in **" + monthsVal + " months**:\n• Monthly: **" + fmtMoney(perMonth) + "**\n• Weekly: **" + fmtMoney(perWeek) + "**";
+          }
+
+          const periods = [
+            { arLabel: "شهر واحد", enLabel: "1 month", m: 1 },
+            { arLabel: "٣ شهور", enLabel: "3 months", m: 3 },
+            { arLabel: "٦ شهور", enLabel: "6 months", m: 6 },
+            { arLabel: "سنة (١٢ شهر)", enLabel: "1 year", m: 12 },
+            { arLabel: "سنتين (٢٤ شهر)", enLabel: "2 years", m: 24 },
+            { arLabel: "٣ سنوات (٣٦ شهر)", enLabel: "3 years", m: 36 },
+            { arLabel: "٥ سنوات (٦٠ شهر)", enLabel: "5 years", m: 60 }
+          ];
+
+          const listLines = periods.map((p) => {
+            const pm = goalVal / p.m;
+            return ar ? "• " + p.arLabel + ": **" + fmtMoney(pm) + "**/شهر" : "• " + p.enLabel + ": **" + fmtMoney(pm) + "**/mo";
+          });
+
+          return ar
+            ? "أبشر يا جواد 🎯 حسبت لك هدف **" + fmtMoney(goalVal) + "** على فترات مختلفة:\n" + listLines.join("\n")
+            : "Here you go Jawad 🎯 Target **" + fmtMoney(goalVal) + "** across periods:\n" + listLines.join("\n");
+        }
+
+        return ar
+          ? "أهلاً يا جواد، سجل المعاملات التفصيلية غير مكشوف برمجياً في الصفحة، لكن أقدر أحسب لك أي هدف ومدة من شهر إلى ٥ سنوات؛ جرّب: «هدف ٢٠٠ ألف لمدة سنتين»."
+          : "Hello Jawad, detailed transactions aren't exposed programmatically on the page, but I can calculate any goal from 1 month to 5 years, e.g. «goal 200000 in 2 years».";
+      };
+
+      const addMsg = (txt, isUser) => {
+        const msgs = document.getElementById("sf2Messages");
+        if (!msgs) return;
+        const el = document.createElement("div");
+        el.style.cssText = isUser
+          ? "align-self:flex-end;background:#c2410c;color:#fff;padding:8px 11px;border-radius:14px 14px 4px 14px;max-width:85%;white-space:pre-line;"
+          : "align-self:flex-start;background:#f3f4f6;color:#111827;padding:8px 11px;border-radius:14px 14px 14px 4px;max-width:90%;white-space:pre-line;";
+        el.innerHTML = String(txt).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+        msgs.appendChild(el);
+        msgs.scrollTop = msgs.scrollHeight;
+      };
+
+      const sendMsg = (txt) => {
+        const clean = String(txt || "").trim();
+        if (!clean) return;
+        addMsg(clean, true);
+        setTimeout(() => addMsg(reply(clean), false), 100);
+      };
+
+      const renderUi = () => {
+        const ar = isAr();
+        const box = document.getElementById("sf2Widget");
+        if (box) box.style.direction = ar ? "rtl" : "ltr";
+
+        const lbl = document.getElementById("sf2BtnLabel");
+        const ttl = document.getElementById("sf2Title");
+        const inp = document.getElementById("sf2Input");
+        const snd = document.getElementById("sf2SendBtn");
+        const chp = document.getElementById("sf2QuickChips");
+
+        if (lbl) lbl.textContent = ar ? "المساعد المالي" : "AI Advisor";
+        if (ttl) ttl.textContent = ar ? "🤖 مساعد جواد المالي" : "🤖 Jawad's Financial Assistant";
+        if (inp) inp.placeholder = ar ? "يا جواد، اكتب هدفك والمدة (مثال: هدف ٢٠٠ ألف لمدة سنتين)..." : "Jawad, enter goal & period...";
+        if (snd) snd.textContent = ar ? "إرسال" : "Send";
+
+        const chips = ar
+          ? ["هدف ١٠٠ ألف لمدة ٦ شهور", "هدف ٢٠٠ ألف لمدة سنتين", "هدف ٥٠٠ ألف لمدة ٣ سنوات", "هدف مليون لمدة ٥ سنوات"]
+          : ["Goal 100k in 6 months", "Goal 200k in 2 years", "Goal 500k in 3 years", "Goal 1000k in 5 years"];
+
+        if (chp) {
+          chp.innerHTML = "";
+          chips.forEach((label) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = label;
+            btn.style.cssText = "padding:4px 8px;border-radius:999px;border:1px solid #fdba74;background:#fff;color:#9a3412;font-size:11px;font-weight:600;cursor:pointer;";
+            btn.addEventListener("click", () => sendMsg(label));
+            chp.appendChild(btn);
+          });
+        }
+      };
+
+      renderUi();
+      addMsg(
+        isAr()
+          ? "أهلاً بك يا جواد، أنا جاهز أخدمك. حدد أي هدف ومدة من شهر إلى ٥ سنوات مثل: «هدف ٢٠٠ ألف لمدة سنتين»."
+          : "Welcome Jawad, ready to assist. Enter any goal from 1 month to 5 years, e.g. «goal 200000 in 2 years».",
+        false
+      );
+
+      const tgl = document.getElementById("sf2ToggleBtn");
+      const pnl = document.getElementById("sf2Panel");
+      const cls = document.getElementById("sf2CloseBtn");
+      const frm = document.getElementById("sf2Form");
+      const inp = document.getElementById("sf2Input");
+
+      if (tgl && pnl) {
+        tgl.addEventListener("click", () => {
+          renderUi();
+          pnl.style.display = pnl.style.display === "none" ? "flex" : "none";
+        });
+      }
+      if (cls && pnl) {
+        cls.addEventListener("click", () => {
+          pnl.style.display = "none";
+        });
+      }
+      if (frm && inp) {
+        frm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const v = inp.value;
+          inp.value = "";
+          sendMsg(v);
+        });
+      }
+    } catch (e) {
+      if (window.console && console.warn) console.warn("sf2 safe guard:", e);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initSf2);
+  } else {
+    initSf2();
+  }
+})();
+</script>
 </body>
 </html>
