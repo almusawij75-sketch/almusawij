@@ -2174,30 +2174,30 @@ window.addEventListener("DOMContentLoaded", () => {
 </script>
 
   </script>
-  <!-- Safe Smart Financial Assistant Widget -->
-<div id="smartFinAiWidget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
-  <button id="smartFinAiToggleBtn" type="button"
+  <!-- Smart Financial Assistant Widget v2 -->
+<div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
+  <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
     <span>🤖</span>
-    <span id="smartFinAiBtnLabel">المساعد المالي</span>
+    <span id="sf2BtnLabel">المساعد المالي</span>
   </button>
 
-  <div id="smartFinAiPanel"
-    style="display:none;width:min(360px,calc(100vw - 32px));max-height:75vh;margin-bottom:12px;background:#fff;color:#111827;border-radius:20px;box-shadow:0 20px 45px rgba(0,0,0,0.22);border:1px solid #e5e7eb;overflow:hidden;flex-direction:column;">
+  <div id="sf2Panel"
+    style="display:none;width:min(365px,calc(100vw - 32px));max-height:75vh;margin-bottom:12px;background:#fff;color:#111827;border-radius:20px;box-shadow:0 20px 45px rgba(0,0,0,0.22);border:1px solid #e5e7eb;overflow:hidden;flex-direction:column;">
     <div style="padding:12px 14px;background:#9a3412;color:#fff;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-weight:700;font-size:13px;" id="smartFinAiTitle">🤖 المساعد المالي الذكي</div>
-      <button id="smartFinAiCloseBtn" type="button"
+      <div style="font-weight:700;font-size:13px;" id="sf2Title">🤖 المساعد المالي الذكي</div>
+      <button id="sf2CloseBtn" type="button"
         style="background:rgba(255,255,255,0.18);border:none;color:#fff;border-radius:8px;padding:2px 8px;cursor:pointer;font-weight:700;">✕</button>
     </div>
 
-    <div id="smartFinAiQuickChips" style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;background:#fff7ed;border-bottom:1px solid #ffedd5;"></div>
+    <div id="sf2QuickChips" style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;background:#fff7ed;border-bottom:1px solid #ffedd5;"></div>
 
-    <div id="smartFinAiMessages" style="padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:180px;max-height:320px;font-size:12.5px;line-height:1.55;"></div>
+    <div id="sf2Messages" style="padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:180px;max-height:320px;font-size:12.5px;line-height:1.55;"></div>
 
-    <form id="smartFinAiForm" style="display:flex;gap:6px;padding:10px;border-top:1px solid #e5e7eb;background:#fafafa;">
-      <input id="smartFinAiInput" type="text" autocomplete="off"
+    <form id="sf2Form" style="display:flex;gap:6px;padding:10px;border-top:1px solid #e5e7eb;background:#fafafa;">
+      <input id="sf2Input" type="text" autocomplete="off"
         style="flex:1;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:12.5px;outline:none;" />
-      <button id="smartFinAiSendBtn" type="submit"
+      <button id="sf2SendBtn" type="submit"
         style="padding:8px 12px;border:none;border-radius:10px;background:#c2410c;color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;"></button>
     </form>
   </div>
@@ -2206,22 +2206,37 @@ window.addEventListener("DOMContentLoaded", () => {
 <script>
 window.addEventListener("DOMContentLoaded", function () {
   try {
-    const sfIsAr = () => {
+    const sf2NormDigits = (s) =>
+      String(s || "")
+        .replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)])
+        .replace(/[۰-۹]/g, (d) => "0123456789"["۰۱۲۳۴۵۶۷۸۹".indexOf(d)]);
+
+    const sf2IsAr = () => {
       const dir = (document.documentElement.dir || document.body.dir || "").toLowerCase();
       const lang = (document.documentElement.lang || "").toLowerCase();
       return dir === "rtl" || lang.startsWith("ar") || (document.body?.innerText || "").includes("إجمالي الإيداعات");
     };
 
-    const sfTxList = () => {
+    const sf2TxList = () => {
       const pools = [
         window.transactions,
         window.state?.transactions,
-        typeof state !== "undefined" ? state?.transactions : null
+        typeof state !== "undefined" ? state?.transactions : null,
+        window.allTransactions,
+        window.items
       ].filter(Array.isArray);
       return pools[0] || [];
     };
 
-    const sfDate = (item) => {
+    const sf2DomFallbackStats = () => {
+      const txt = sf2NormDigits(document.body?.innerText || "");
+      const matches = [...txt.matchAll(/(?:SAR\s*)?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/gi)]
+        .map((m) => Number(m[1].replace(/,/g, "")))
+        .filter((n) => Number.isFinite(n) && n > 0 && n < 100000000);
+      return matches;
+    };
+
+    const sf2Date = (item) => {
       try {
         if (typeof window.parseTransactionDate === "function") {
           const parsed = window.parseTransactionDate(item);
@@ -2233,26 +2248,27 @@ window.addEventListener("DOMContentLoaded", function () {
       return isNaN(d.getTime()) ? new Date() : d;
     };
 
-    const sfAmt = (item) => {
-      const num = Number(item?.amount ?? item?.value ?? 0);
+    const sf2Amt = (item) => {
+      const rawNum = sf2NormDigits(item?.amount ?? item?.value ?? 0).replace(/,/g, "");
+      const num = Number(rawNum);
       return Number.isFinite(num) ? Math.abs(num) : 0;
     };
 
-    const sfKind = (item) => {
+    const sf2Kind = (item) => {
       const t = String(item?.type || item?.kind || item?.categoryType || "").toLowerCase();
-      if (["deposit", "topup", "top-up", "add", "income", "wallet_add"].some(k => t.includes(k))) return "deposit";
-      if (["expense", "withdraw", "spend", "deduct", "payment"].some(k => t.includes(k))) return "expense";
-      if (Number(item?.amount) < 0) return "expense";
+      if (["deposit", "topup", "top-up", "add", "income", "wallet_add"].some((k) => t.includes(k))) return "deposit";
+      if (["expense", "withdraw", "spend", "deduct", "payment"].some((k) => t.includes(k))) return "expense";
+      if (Number(sf2NormDigits(item?.amount ?? 0)) < 0) return "expense";
       return "other";
     };
 
-    const sfMoney = (n) => {
+    const sf2Money = (n) => {
       const val = Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return sfIsAr() ? `${val} SAR` : `SAR ${val}`;
+      return sf2IsAr() ? `${val} SAR` : `SAR ${val}`;
     };
 
-    const sfAnalyze = () => {
-      const list = sfTxList();
+    const sf2Analyze = () => {
+      const list = sf2TxList();
       const now = new Date();
       const cy = now.getFullYear(), cm = now.getMonth();
       const prev = new Date(cy, cm - 1, 1);
@@ -2264,7 +2280,7 @@ window.addEventListener("DOMContentLoaded", function () {
       const doms = {};
 
       list.forEach((it) => {
-        const k = sfKind(it), a = sfAmt(it), dt = sfDate(it);
+        const k = sf2Kind(it), a = sf2Amt(it), dt = sf2Date(it);
         const y = dt.getFullYear(), m = dt.getMonth(), dow = dt.getDay(), dom = dt.getDate();
 
         if (k === "deposit") {
@@ -2275,7 +2291,7 @@ window.addEventListener("DOMContentLoaded", function () {
           if (y === cy && m === cm) cmExp += a;
           if (y === py && m === pm) pmExp += a;
 
-          const lbl = String(it?.category || it?.note || it?.title || it?.description || (sfIsAr() ? "عام" : "General")).trim();
+          const lbl = String(it?.category || it?.note || it?.title || it?.description || (sf2IsAr() ? "عام" : "General")).trim();
           cats[lbl] = (cats[lbl] || 0) + a;
           dows[dow] = (dows[dow] || 0) + a;
           doms[dom] = (doms[dom] || 0) + a;
@@ -2286,6 +2302,10 @@ window.addEventListener("DOMContentLoaded", function () {
           if (a > 0 && a <= 50) { smCnt += 1; smSum += a; }
         }
       });
+
+      const domNums = sf2DomFallbackStats();
+      const hasTx = list.length > 0;
+      const fallbackMax = domNums.length ? Math.max(...domNums) : 0;
 
       const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0] || null;
       const topDowArr = Object.entries(dows).sort((a, b) => b[1] - a[1])[0];
@@ -2300,7 +2320,7 @@ window.addEventListener("DOMContentLoaded", function () {
       const saveRate = depTotal > 0 ? Math.max(0, ((depTotal - expTotal) / depTotal) * 100) : 0;
 
       return {
-        depTotal, expTotal, cmExp, pmExp, cmDep, wknd, wkdy, smCnt, smSum,
+        hasTx, fallbackMax, depTotal, expTotal, cmExp, pmExp, cmDep, wknd, wkdy, smCnt, smSum,
         topCat,
         topDow: topDowArr ? { dow: Number(topDowArr[0]), sum: topDowArr[1] } : null,
         topDom: topDomArr ? { dom: Number(topDomArr[0]), sum: topDomArr[1] } : null,
@@ -2308,92 +2328,116 @@ window.addEventListener("DOMContentLoaded", function () {
       };
     };
 
+    const sf2ParseGoal = (normQ) => {
+      const m = normQ.match(/(\d+(?:[.,]\d+)?)\s*(الف|ألف|k)?/i);
+      if (!m) return null;
+      let val = Number(m[1].replace(/,/g, ""));
+      if (!Number.isFinite(val)) return null;
+      if (m[2] && ["الف", "ألف", "k"].includes(m[2].toLowerCase())) val *= 1000;
+      return val;
+    };
+
+    const sf2ParseMonths = (normQ) => {
+      if (normQ.includes("سنه") || normQ.includes("سنة") || normQ.includes("year")) {
+        const ym = normQ.match(/(\d+)\s*(سنه|سنة|year)/);
+        return (ym ? Number(ym[1]) : 1) * 12;
+      }
+      const mm = normQ.match(/(\d+)\s*(شهر|اشهر|أشهر|شهور|month)/);
+      return mm ? Number(mm[1]) : null;
+    };
+
     const arDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
     const enDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-    const sfReply = (rawQ) => {
-      const q = String(rawQ || "").trim().toLowerCase();
-      const ar = sfIsAr();
-      const a = sfAnalyze();
+    const sf2Reply = (rawQ) => {
+      const q = sf2NormDigits(String(rawQ || "").trim().toLowerCase());
+      const ar = sf2IsAr();
+      const a = sf2Analyze();
       const curSaved = Math.max(0, a.depTotal - a.expTotal);
 
-      const numMatch = q.match(/(\d+(?:[.,]\d+)?)/);
-      const goalVal = numMatch ? Number(numMatch[1].replace(/,/g, "")) : null;
+      const goalVal = sf2ParseGoal(q);
+      const monthsInput = sf2ParseMonths(q);
 
-      if (goalVal && (q.includes("هدف") || q.includes("اوصل") || q.includes("أوصل") || q.includes("اجمع") || q.includes("أجمع") || q.includes("goal") || q.includes("save") || q.includes("reach"))) {
+      if (goalVal && (q.includes("هدف") || q.includes("اوصل") || q.includes("أوصل") || q.includes("اجمع") || q.includes("أجمع") || q.includes("اوفر") || q.includes("أوفر") || q.includes("مبلغ") || q.includes("goal") || q.includes("save") || q.includes("reach"))) {
         const rem = Math.max(0, goalVal - curSaved);
+        if (monthsInput && monthsInput > 0) {
+          const perMonth = rem / monthsInput;
+          const perWeek = perMonth / 4.33;
+          return ar
+            ? `🎯 لهدف **${sf2Money(goalVal)}** خلال **${monthsInput} شهر**:\n• المبلغ المتبقي: ${sf2Money(rem)} (الرصيد/المدخرات الحالية: ${sf2Money(curSaved)}).\n• يلزمك ادخار/توفير شهرياً: **${sf2Money(perMonth)}** (حوالي ${sf2Money(perWeek)} أسبوعياً).`
+            : `🎯 For **${sf2Money(goalVal)}** in **${monthsInput} months**:\n• Remaining: ${sf2Money(rem)} (current savings: ${sf2Money(curSaved)}).\n• Monthly saving needed: **${sf2Money(perMonth)}** (~${sf2Money(perWeek)}/week).`;
+        }
         const pace = Math.max(a.estSave, a.cmDep - a.cmExp, 500);
         const mos = rem === 0 ? 0 : Math.ceil(rem / pace);
         const wks = rem === 0 ? 0 : Math.ceil((rem / pace) * 4.33);
-        if (ar) {
-          return rem === 0
-            ? `ما شاء الله! مدخراتك الحالية (${sfMoney(curSaved)}) غطت هدفك (${sfMoney(goalVal)}).`
-            : `🎯 لهدف ${sfMoney(goalVal)}:\n• المبلغ المتبقي: ${sfMoney(rem)} (مدخراتك الحالية: ${sfMoney(curSaved)}).\n• المدة التقديرية: حوالي ${mos} شهر (${wks} أسبوع) بمعدل ادخار تقديري ${sfMoney(pace)}/شهر.`;
-        }
-        return rem === 0
-          ? `Great! Your current savings (${sfMoney(curSaved)}) already reach ${sfMoney(goalVal)}.`
-          : `🎯 Goal ${sfMoney(goalVal)}:\n• Remaining: ${sfMoney(rem)} (current: ${sfMoney(curSaved)}).\n• Estimated duration: ~${mos} months (~${wks} weeks) at ~${sfMoney(pace)}/month.`;
+        return ar
+          ? `🎯 لهدف **${sf2Money(goalVal)}**:\n• المتبقي عليك: ${sf2Money(rem)} (الرصيد/المدخرات الحالية: ${sf2Money(curSaved)}).\n• المدة التقديرية: حوالي **${mos} شهر** (${wks} أسبوع) بمعدل ${sf2Money(pace)}/شهر.`
+          : `🎯 For **${sf2Money(goalVal)}**:\n• Remaining: ${sf2Money(rem)} (current savings: ${sf2Money(curSaved)}).\n• Estimated time: ~**${mos} months** (${wks} weeks) at ${sf2Money(pace)}/month.`;
       }
 
       if (q.includes("أكثر مصاريف") || q.includes("اكثر مصاريف") || q.includes("أصرف") || q.includes("اصرف") || q.includes("فئة") || q.includes("category") || q.includes("top")) {
-        if (!a.topCat) return ar ? "لا توجد مصروفات مسجلة كافية." : "Not enough expense data.";
+        if (!a.topCat) {
+          return ar
+            ? (a.fallbackMax ? `📌 لم أجد تفاصيل الفئات في المعاملات، وأعلى رقم ظاهر في الصفحة حالياً هو **${sf2Money(a.fallbackMax)}**.` : "لا توجد مصروفات مسجلة كافية لتحليل أكثر فئة.")
+            : "Not enough expense category data yet.";
+        }
         const pct = a.expTotal > 0 ? ((a.topCat[1] / a.expTotal) * 100).toFixed(1) : "0.0";
         return ar
-          ? `📌 أكثر بند/فئة تصرف فيها: **${a.topCat[0]}** بقيمة ${sfMoney(a.topCat[1])} (${pct}% من المصروفات).`
-          : `📌 Top spending item/category: **${a.topCat[0]}** at ${sfMoney(a.topCat[1])} (${pct}% of expenses).`;
+          ? `📌 أكثر بند/فئة تصرف فيها: **${a.topCat[0]}** بقيمة ${sf2Money(a.topCat[1])} (${pct}% من المصروفات).`
+          : `📌 Top category: **${a.topCat[0]}** at ${sf2Money(a.topCat[1])} (${pct}% of expenses).`;
       }
 
       if (q.includes("يوم") || q.includes("day")) {
         if (!a.topDow || a.topDow.sum === 0) return ar ? "لا توجد بيانات كافية لأيام الصرف." : "Not enough day data.";
         const dTxt = ar ? arDays[a.topDow.dow] : enDays[a.topDow.dow];
-        const domTxt = a.topDom ? (ar ? ` وأعلى تاريخ في الشهر كان يوم **${a.topDom.dom}** (${sfMoney(a.topDom.sum)}).` : ` Highest day of month: **${a.topDom.dom}** (${sfMoney(a.topDom.sum)}).`) : "";
+        const domTxt = a.topDom ? (ar ? ` وأعلى تاريخ في الشهر كان يوم **${a.topDom.dom}** (${sf2Money(a.topDom.sum)}).` : ` Peak day of month: **${a.topDom.dom}** (${sf2Money(a.topDom.sum)}).`) : "";
         return ar
-          ? `📅 أكثر يوم في الأسبوع تصرف فيه: **${dTxt}** بإجمالي ${sfMoney(a.topDow.sum)}.${domTxt}`
-          : `📅 Peak day of week: **${dTxt}** (${sfMoney(a.topDow.sum)}).${domTxt}`;
+          ? `📅 أكثر يوم في الأسبوع تصرف فيه: **${dTxt}** بإجمالي ${sf2Money(a.topDow.sum)}.${domTxt}`
+          : `📅 Peak day of week: **${dTxt}** (${sf2Money(a.topDow.sum)}).${domTxt}`;
       }
 
-      if (q.includes("مقارن") || q.includes("الشهر الماضي") || q.includes("compare") || q.includes("last month")) {
+      if (q.includes("مقارن") || q.includes("الشهر الماضي") || q.includes("الشهر السابق") || q.includes("compare") || q.includes("last month")) {
         const diff = a.cmExp - a.pmExp;
         const pct = a.pmExp > 0 ? ((diff / a.pmExp) * 100).toFixed(1) : null;
         if (ar) {
-          const st = diff > 0 ? `زيادة ${sfMoney(diff)}${pct ? ` (+${pct}%)` : ""}` : diff < 0 ? `انخفاض ${sfMoney(Math.abs(diff))}${pct ? ` (${pct}%)` : ""}` : "متقاربة";
-          return `📊 مقارنة مصروفات الشهر الحالي بالماضي:\n• الشهر الحالي: ${sfMoney(a.cmExp)}\n• الشهر الماضي: ${sfMoney(a.pmExp)}\n• الفرق: ${st}\n• نهاية الأسبوع مقابل بقية الأسبوع: ${sfMoney(a.wknd)} vs ${sfMoney(a.wkdy)}.`;
+          const st = diff > 0 ? `زيادة ${sf2Money(diff)}${pct ? ` (+${pct}%)` : ""}` : diff < 0 ? `انخفاض ${sf2Money(Math.abs(diff))}${pct ? ` (${pct}%)` : ""}` : "متقاربة";
+          return `📊 مقارنة مصروفات الشهر الحالي بالماضي:\n• الشهر الحالي: ${sf2Money(a.cmExp)}\n• الشهر الماضي: ${sf2Money(a.pmExp)}\n• الفرق: ${st}\n• نهاية الأسبوع مقابل بقية الأسبوع: ${sf2Money(a.wknd)} vs ${sf2Money(a.wkdy)}.`;
         }
-        return `📊 This Month vs Last Month:\n• Current: ${sfMoney(a.cmExp)}\n• Previous: ${sfMoney(a.pmExp)}\n• Weekend vs Weekdays: ${sfMoney(a.wknd)} vs ${sfMoney(a.wkdy)}.`;
+        return `📊 This Month vs Last Month:\n• Current: ${sf2Money(a.cmExp)}\n• Previous: ${sf2Money(a.pmExp)}\n• Weekend vs Weekdays: ${sf2Money(a.wknd)} vs ${sf2Money(a.wkdy)}.`;
       }
 
       if (q.includes("أوفر") || q.includes("اوفر") || q.includes("أجمع") || q.includes("اجمع") || q.includes("وفر") || q.includes("save") || q.includes("saving")) {
         const extraSave = a.cmExp * 0.15 + a.smSum * 0.3;
         if (ar) {
-          return `💰 توقع هذا الشهر (${a.remDays} يوم متبقي):\n• الادخار/الفائض المتوقع بنهاية الشهر: ${sfMoney(a.estSave)}\n• نسبة الادخار الإجمالية: ${a.saveRate.toFixed(1)}%\n• بتخفيف 15% من الصرف وتقليل المصروفات الصغيرة (${a.smCnt} عملية بـ ${sfMoney(a.smSum)}) يمكن توفير إضافي ~**${sfMoney(extraSave)}**.`;
+          return `💰 توقع هذا الشهر (${a.remDays} يوم متبقي):\n• الادخار/الفائض المتوقع بنهاية الشهر: ${sf2Money(a.estSave)}\n• نسبة الادخار الإجمالية: ${a.saveRate.toFixed(1)}%\n• بتخفيف 15% من الصرف وتقليل المصروفات الصغيرة (${a.smCnt} عملية بـ ${sf2Money(a.smSum)}) يمكن توفير إضافي ~**${sf2Money(extraSave)}**.`;
         }
-        return `💰 This Month Outlook (${a.remDays} days left):\n• Projected monthly saving: ${sfMoney(a.estSave)}\n• Savings rate: ${a.saveRate.toFixed(1)}%\n• Trimming 15% + small items (${a.smCnt} tx, ${sfMoney(a.smSum)}) can add ~**${sfMoney(extraSave)}**.`;
+        return `💰 This Month Outlook (${a.remDays} days left):\n• Projected monthly saving: ${sf2Money(a.estSave)}\n• Savings rate: ${a.saveRate.toFixed(1)}%\n• Trimming 15% + small items (${a.smCnt} tx, ${sf2Money(a.smSum)}) can add ~**${sf2Money(extraSave)}**.`;
       }
 
       return ar
-        ? `✨ ملخص سريع:\n• الإيداعات: ${sfMoney(a.depTotal)} | المصروفات: ${sfMoney(a.expTotal)}\n• أكثر فئة صرف: ${a.topCat ? `${a.topCat[0]} (${sfMoney(a.topCat[1])})` : "غير متوفر"}\n• التوفير المتوقع هذا الشهر: ${sfMoney(a.estSave)}\nجرّب: "أكثر مصاريفي"، "أكثر يوم أصرف فيه"، "مقارنة بالشهر الماضي"، "كم أقدر أوفر"، أو "هدف 10000".`
-        : `✨ Quick Summary:\n• Top-ups: ${sfMoney(a.depTotal)} | Expenses: ${sfMoney(a.expTotal)}\n• Top category: ${a.topCat ? `${a.topCat[0]} (${sfMoney(a.topCat[1])})` : "N/A"}\n• Projected saving: ${sfMoney(a.estSave)}\nTry: "Top spend", "Peak day", "Compare last month", "How much can I save", or "Goal 10000".`;
+        ? `✨ ملخص سريع:\n• الإيداعات: ${sf2Money(a.depTotal)} | المصروفات: ${sf2Money(a.expTotal)}\n• أكثر فئة صرف: ${a.topCat ? `${a.topCat[0]} (${sf2Money(a.topCat[1])})` : "غير متوفر"}\n• التوفير المتوقع هذا الشهر: ${sf2Money(a.estSave)}\nجرّب: "هدف ١٠٠ الف لمدة سنه"، "أكثر مصاريفي"، "أكثر يوم أصرف فيه"، "مقارنة بالشهر الماضي"، أو "كم أقدر أوفر".`
+        : `✨ Quick Summary:\n• Top-ups: ${sf2Money(a.depTotal)} | Expenses: ${sf2Money(a.expTotal)}\n• Top category: ${a.topCat ? `${a.topCat[0]} (${sf2Money(a.topCat[1])})` : "N/A"}\n• Projected saving: ${sf2Money(a.estSave)}\nTry: "Goal 100000 in 1 year", "Top spend", "Peak day", "Compare last month", or "How much can I save".`;
     };
 
-    const sfRenderLang = () => {
-      const ar = sfIsAr();
-      const box = document.getElementById("smartFinAiWidget");
+    const sf2RenderLang = () => {
+      const ar = sf2IsAr();
+      const box = document.getElementById("sf2Widget");
       if (box) box.style.direction = ar ? "rtl" : "ltr";
 
-      const lbl = document.getElementById("smartFinAiBtnLabel");
-      const ttl = document.getElementById("smartFinAiTitle");
-      const inp = document.getElementById("smartFinAiInput");
-      const snd = document.getElementById("smartFinAiSendBtn");
-      const chp = document.getElementById("smartFinAiQuickChips");
+      const lbl = document.getElementById("sf2BtnLabel");
+      const ttl = document.getElementById("sf2Title");
+      const inp = document.getElementById("sf2Input");
+      const snd = document.getElementById("sf2SendBtn");
+      const chp = document.getElementById("sf2QuickChips");
 
       if (lbl) lbl.textContent = ar ? "المساعد المالي" : "AI Advisor";
       if (ttl) ttl.textContent = ar ? "🤖 المساعد المالي الذكي" : "🤖 Smart Financial Advisor";
-      if (inp) inp.placeholder = ar ? "اسأل أو اكتب: هدف 10000..." : "Ask or type: goal 10000...";
+      if (inp) inp.placeholder = ar ? "مثال: هدف ١٠٠ الف لمدة سنه..." : "e.g. goal 100000 in 12 months...";
       if (snd) snd.textContent = ar ? "إرسال" : "Send";
 
       const quick = ar
-        ? ["أكثر مصاريفي", "أكثر يوم أصرف فيه", "مقارنة بالشهر الماضي", "كم أقدر أوفر", "هدف 10000"]
-        : ["Top spend", "Peak day", "Compare last month", "How much can I save", "Goal 10000"];
+        ? ["أكثر مصاريفي", "أكثر يوم أصرف فيه", "مقارنة بالشهر الماضي", "كم أقدر أوفر", "هدف ١٠٠ الف لمدة سنه"]
+        : ["Top spend", "Peak day", "Compare last month", "How much can I save", "Goal 10000 in 12 months"];
 
       if (chp) {
         chp.innerHTML = "";
@@ -2402,14 +2446,14 @@ window.addEventListener("DOMContentLoaded", function () {
           btn.type = "button";
           btn.textContent = t;
           btn.style.cssText = "padding:4px 8px;border-radius:999px;border:1px solid #fdba74;background:#fff;color:#9a3412;font-size:11px;font-weight:600;cursor:pointer;";
-          btn.addEventListener("click", () => sfSend(t));
+          btn.addEventListener("click", () => sf2Send(t));
           chp.appendChild(btn);
         });
       }
     };
 
-    const sfAddMsg = (txt, isUser = false) => {
-      const msgs = document.getElementById("smartFinAiMessages");
+    const sf2AddMsg = (txt, isUser = false) => {
+      const msgs = document.getElementById("sf2Messages");
       if (!msgs) return;
       const el = document.createElement("div");
       el.style.cssText = isUser
@@ -2420,30 +2464,30 @@ window.addEventListener("DOMContentLoaded", function () {
       msgs.scrollTop = msgs.scrollHeight;
     };
 
-    const sfSend = (txt) => {
+    const sf2Send = (txt) => {
       const clean = String(txt || "").trim();
       if (!clean) return;
-      sfAddMsg(clean, true);
-      setTimeout(() => sfAddMsg(sfReply(clean), false), 100);
+      sf2AddMsg(clean, true);
+      setTimeout(() => sf2AddMsg(sf2Reply(clean), false), 100);
     };
 
-    sfRenderLang();
-    sfAddMsg(
-      sfIsAr()
-        ? "أهلاً بك! اختر سؤالاً سريعاً أو اكتب سؤالك عن مصاريفك، أيام الصرف، المقارنات، التوفير، أو هدف الادخار."
-        : "Welcome! Pick a quick chip or ask about spending, peak days, comparisons, savings, or a goal.",
+    sf2RenderLang();
+    sf2AddMsg(
+      sf2IsAr()
+        ? "أهلاً بك! جرّب الأزرار السريعة أو اكتب هدفك مثل: «كم أقدر أوفر كل شهر حتى أوصل ١٠٠ الف لمدة سنة»."
+        : "Welcome! Try a quick button or ask e.g. «how much to save per month to reach 100000 in 1 year».",
       false
     );
 
-    const tgl = document.getElementById("smartFinAiToggleBtn");
-    const pnl = document.getElementById("smartFinAiPanel");
-    const cls = document.getElementById("smartFinAiCloseBtn");
-    const frm = document.getElementById("smartFinAiForm");
-    const inp = document.getElementById("smartFinAiInput");
+    const tgl = document.getElementById("sf2ToggleBtn");
+    const pnl = document.getElementById("sf2Panel");
+    const cls = document.getElementById("sf2CloseBtn");
+    const frm = document.getElementById("sf2Form");
+    const inp = document.getElementById("sf2Input");
 
     tgl?.addEventListener("click", () => {
       if (!pnl) return;
-      sfRenderLang();
+      sf2RenderLang();
       pnl.style.display = pnl.style.display === "none" ? "flex" : "none";
     });
     cls?.addEventListener("click", () => {
@@ -2454,12 +2498,12 @@ window.addEventListener("DOMContentLoaded", function () {
       if (!inp) return;
       const v = inp.value;
       inp.value = "";
-      sfSend(v);
+      sf2Send(v);
     });
 
-    setInterval(sfRenderLang, 800);
+    setInterval(sf2RenderLang, 800);
   } catch (err) {
-    console.warn("Smart AI widget safe catch:", err);
+    console.warn("Smart AI v2 safe catch:", err);
   }
 });
 </script>
