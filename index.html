@@ -394,13 +394,13 @@
                 Set Exact Balance
               </button>
             </div><div class="flex flex-wrap gap-2 items-center w-full pt-1">
-  <button type="button" onclick="resetSelectedPeriodDeposits('day')" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold">
+  <button type="button" id="resetDayDepositsBtn" onclick="resetSelectedPeriodDeposits('day')" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold">
     تصفير إيداعات اليوم
   </button>
-  <button type="button" onclick="resetSelectedPeriodDeposits('month')" class="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-semibold">
+  <button type="button" id="resetMonthDepositsBtn" onclick="resetSelectedPeriodDeposits('month')" class="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-semibold">
     تصفير إيداعات الشهر
   </button>
-  <button type="button" onclick="resetSelectedPeriodDeposits('year')" class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold">
+  <button type="button" id="resetYearDepositsBtn" onclick="resetSelectedPeriodDeposits('year')" class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold">
     تصفير إيداعات السنة
   </button>
 </div>
@@ -2146,6 +2146,24 @@ window.resetSelectedPeriodDeposits = function (period = "month") {
   if (typeof updateUI === "function") updateUI();
   location.reload();
 };
+window.updateResetDepositButtonsLang = function () {
+  const isAr =
+    (document.documentElement.lang || "").toLowerCase().startsWith("ar") ||
+    !document.body.innerText.includes("Wallet Flow Overview");
+
+  const dayBtn = document.getElementById("resetDayDepositsBtn");
+  const monthBtn = document.getElementById("resetMonthDepositsBtn");
+  const yearBtn = document.getElementById("resetYearDepositsBtn");
+
+  if (dayBtn) dayBtn.textContent = isAr ? "تصفير إيداعات اليوم" : "Reset Day Top-ups";
+  if (monthBtn) monthBtn.textContent = isAr ? "تصفير إيداعات الشهر" : "Reset Month Top-ups";
+  if (yearBtn) yearBtn.textContent = isAr ? "تصفير إيداعات السنة" : "Reset Year Top-ups";
+};
+
+window.addEventListener("DOMContentLoaded", () => {
+  window.updateResetDepositButtonsLang();
+  setTimeout(() => window.updateResetDepositButtonsLang(), 300);
+});
 
   </script>
 </body>
