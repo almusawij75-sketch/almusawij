@@ -2755,11 +2755,13 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Loans Section v1 (Bilingual AR/EN + Wallet Deduction & Expense Recording) -->
+  <!-- Loans Section v2 (Bilingual AR/EN + Guaranteed Display, LocalStorage Backup & Wallet/Expense Sync) -->
 <script>
 (function () {
-  function initLoansFeature() {
+  function initLoansFeatureV2() {
     try {
+      const STORAGE_KEY = "sf2_loans_backup_v1";
+
       const LOANS_TEXT = {
         ar: {
           tabLabel: "💳 القروض",
@@ -2788,6 +2790,7 @@ window.addEventListener("DOMContentLoaded", () => {
           errSelectLoan: "يرجى اختيار قرض.",
           errPayAmt: "يرجى إدخال مبلغ دفعة صحيح أكبر من صفر.",
           errWalletLow: "رصيد المحفظة الحالية غير كافٍ لتغطية مبلغ الدفعة.",
+          loanAdded: "تمت إضافة القرض بنجاح.",
           paidDone: "تم تسجيل الدفعة وخصمها من المحفظة وإضافتها للمصروفات."
         },
         en: {
@@ -2817,8 +2820,19 @@ window.addEventListener("DOMContentLoaded", () => {
           errSelectLoan: "Please select a loan.",
           errPayAmt: "Please enter a valid payment amount greater than zero.",
           errWalletLow: "Current wallet balance is not enough for this payment.",
+          loanAdded: "Loan added successfully.",
           paidDone: "Payment recorded, deducted from wallet, and added to expenses."
         }
+      };
+
+      const normNumInput = (val) => {
+        const s = String(val ?? "")
+          .replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)])
+          .replace(/[۰-۹]/g, (d) => "0123456789"["۰۱۲۳۴۵۶۷۸۹".indexOf(d)])
+          .replace(/,/g, "")
+          .trim();
+        const n = Number(s);
+        return isFinite(n) ? n : NaN;
       };
 
       const getLang = () => {
@@ -2844,25 +2858,65 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const toSarValue = (rawVal) => {
-        const num = Number(rawVal);
+        const num = normNumInput(rawVal);
         if (!isFinite(num) || num <= 0) return 0;
         try {
           if (typeof fromInputToSAR === "function") {
-            return Number(fromInputToSAR(num)) || num;
+            const converted = Number(fromInputToSAR(num));
+            if (isFinite(converted) && converted > 0) return converted;
           }
         } catch (_) {}
         return num;
       };
 
-      const ensureLoansState = () => {
-        if (typeof state === "undefined" || !state) return [];
-        if (!Array.isArray(state.loans)) {
-          state.loans = [];
+      const readBackupLoans = () => {
+        try {
+          const raw = window.localStorage ? localStorage.getItem(STORAGE_KEY) : null;
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          return [];
         }
-        return state.loans;
       };
 
-      const saveAppState = () => {
+      const writeBackupLoans = (arr) => {
+        try {
+          if (window.localStorage) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(arr || []));
+          }
+        } catch (_) {}
+      };
+
+      let localLoansFallback = readBackupLoans();
+
+      const getLoans = () => {
+        try {
+          if (typeof state !== "undefined" && state) {
+            if (Array.isArray(state.loans) && state.loans.length > 0) {
+              localLoansFallback = state.loans;
+              writeBackupLoans(state.loans);
+              return state.loans;
+            }
+            if (!Array.isArray(state.loans)) {
+              state.loans = localLoansFallback.length ? localLoansFallback.slice() : [];
+            } else if (state.loans.length === 0 && localLoansFallback.length > 0) {
+              state.loans = localLoansFallback.slice();
+            }
+            return state.loans;
+          }
+        } catch (_) {}
+        return localLoansFallback;
+      };
+
+      const saveLoansAndApp = (loansArr) => {
+        localLoansFallback = Array.isArray(loansArr) ? loansArr : [];
+        writeBackupLoans(localLoansFallback);
+        try {
+          if (typeof state !== "undefined" && state) {
+            state.loans = localLoansFallback;
+          }
+        } catch (_) {}
         try {
           if (typeof persistState === "function") {
             persistState();
@@ -2930,6 +2984,7 @@ window.addEventListener("DOMContentLoaded", () => {
                   <input id="lnInitialPaidInput" type="number" min="0" step="any" class="theme-input rounded-xl px-3 py-2 text-sm font-bold w-full" />
                 </div>
                 <button type="submit" id="lnAddBtn" class="btn-accent rounded-xl px-4 py-2 text-xs sm:text-sm font-bold"></button>
+                <div id="lnAddFeedback" class="text-xs font-bold"></div>
               </form>
 
               <form id="lnPayForm" class="theme-subtle rounded-2xl p-4 space-y-3">
@@ -2944,7 +2999,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 </div>
                 <input id="lnPayNoteInput" type="text" class="theme-input rounded-xl px-3 py-2 text-sm w-full" />
                 <button type="submit" id="lnPayBtn" class="btn-accent rounded-xl px-4 py-2 text-xs sm:text-sm font-bold"></button>
-                <div id="lnFeedback" class="text-xs font-semibold"></div>
+                <div id="lnFeedback" class="text-xs font-bold"></div>
               </form>
             </div>
 
@@ -2981,8 +3036,8 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       };
 
-      const showFeedback = (msg, isError) => {
-        const fb = document.getElementById("lnFeedback");
+      const showFeedback = (msg, isError, targetId) => {
+        const fb = document.getElementById(targetId || "lnFeedback");
         if (!fb) return;
         fb.textContent = msg || "";
         fb.style.color = isError ? "#dc2626" : "#059669";
@@ -2990,7 +3045,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const renderLoansUI = () => {
         const d = txt();
-        const loans = ensureLoansState();
+        const loans = getLoans();
 
         const navBtn = document.getElementById("loansNavTabBtn");
         if (navBtn) navBtn.textContent = d.tabLabel;
@@ -3081,10 +3136,11 @@ window.addEventListener("DOMContentLoaded", () => {
             delBtn.className = "px-3 py-1 rounded-lg text-xs font-bold text-rose-600 border border-rose-200";
             delBtn.textContent = d.deleteBtn;
             delBtn.addEventListener("click", () => {
-              const idx = loans.findIndex((x) => x.id === ln.id);
+              const currentLoans = getLoans();
+              const idx = currentLoans.findIndex((x) => x.id === ln.id);
               if (idx !== -1) {
-                loans.splice(idx, 1);
-                saveAppState();
+                currentLoans.splice(idx, 1);
+                saveLoansAndApp(currentLoans);
                 renderLoansUI();
               }
             });
@@ -3117,10 +3173,10 @@ window.addEventListener("DOMContentLoaded", () => {
             const totalSar = toSarValue(totalEl && totalEl.value);
             const initPaidSar = Math.min(totalSar, Math.max(0, toSarValue(initPaidEl && initPaidEl.value)));
 
-            if (!name) return showFeedback(d.errLoanName, true);
-            if (!(totalSar > 0)) return showFeedback(d.errTotalAmt, true);
+            if (!name) return showFeedback(d.errLoanName, true, "lnAddFeedback");
+            if (!(totalSar > 0)) return showFeedback(d.errTotalAmt, true, "lnAddFeedback");
 
-            const loans = ensureLoansState();
+            const loans = getLoans();
             loans.push({
               id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()),
               name,
@@ -3132,9 +3188,9 @@ window.addEventListener("DOMContentLoaded", () => {
             if (totalEl) totalEl.value = "";
             if (initPaidEl) initPaidEl.value = "";
 
-            saveAppState();
+            saveLoansAndApp(loans);
             renderLoansUI();
-            showFeedback("", false);
+            showFeedback(d.loanAdded, false, "lnAddFeedback");
           });
         }
 
@@ -3153,15 +3209,15 @@ window.addEventListener("DOMContentLoaded", () => {
             const payDate = (dtEl && dtEl.value) || (new Date().toISOString().slice(0, 10));
             const noteText = String((noteEl && noteEl.value) || "").trim();
 
-            const loans = ensureLoansState();
+            const loans = getLoans();
             const targetLoan = loans.find((x) => x.id === loanId);
-            if (!targetLoan) return showFeedback(d.errSelectLoan, true);
-            if (!(paySar > 0)) return showFeedback(d.errPayAmt, true);
+            if (!targetLoan) return showFeedback(d.errSelectLoan, true, "lnFeedback");
+            if (!(paySar > 0)) return showFeedback(d.errPayAmt, true, "lnFeedback");
 
             if (typeof state !== "undefined" && state) {
               const currentWallet = Number(state.walletBalance) || 0;
               if (currentWallet < paySar) {
-                return showFeedback(d.errWalletLow, true);
+                return showFeedback(d.errWalletLow, true, "lnFeedback");
               }
               state.walletBalance = currentWallet - paySar;
               if (!Array.isArray(state.expenses)) state.expenses = [];
@@ -3179,9 +3235,9 @@ window.addEventListener("DOMContentLoaded", () => {
             if (amtEl) amtEl.value = "";
             if (noteEl) noteEl.value = "";
 
-            saveAppState();
+            saveLoansAndApp(loans);
             renderLoansUI();
-            showFeedback(d.paidDone, false);
+            showFeedback(d.paidDone, false, "lnFeedback");
           });
         }
 
@@ -3198,14 +3254,14 @@ window.addEventListener("DOMContentLoaded", () => {
       bindForms();
       renderLoansUI();
     } catch (err) {
-      if (window.console && console.warn) console.warn("Loans section safe guard:", err);
+      if (window.console && console.warn) console.warn("Loans section v2 safe guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initLoansFeature);
+    document.addEventListener("DOMContentLoaded", initLoansFeatureV2);
   } else {
-    initLoansFeature();
+    initLoansFeatureV2();
   }
 })();
 </script>
