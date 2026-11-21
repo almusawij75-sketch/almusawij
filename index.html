@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v9 -->
+  <!-- Smart Financial Assistant Widget v10 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2300,7 +2300,7 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const isNonExpenseLabel = (txt) => {
-        return /هدف|الادخار|ادخار|رصيد|الرصيد|إيداع|ايداع|إجمالي|اجمالي|مقارنة|شهر|أسبوع|اسبوع|تصدير|مساعد|حساب|تسجيل|دخول|خروج|goal|saving|deposit|balance|total|compare|month|week/i.test(txt);
+        return /هدف|الادخار|ادخار|محفظة|المحفظة|رصيد|الرصيد|إيداع|ايداع|إجمالي|اجمالي|مقارنة|شهر|أسبوع|اسبوع|تصدير|مساعد|حساب|تسجيل|دخول|خروج|إنفاق|انفاق|wallet|goal|saving|deposit|balance|total|compare|month|week/i.test(txt);
       };
 
       const readTopSpendingItem = () => {
