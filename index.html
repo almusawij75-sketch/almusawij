@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v12 -->
+  <!-- Smart Financial Assistant Widget v13 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2226,7 +2226,6 @@ window.addEventListener("DOMContentLoaded", () => {
         return isAr() ? val + " SAR" : "SAR " + val;
       };
 
-      // مقارنة الشهر الحالي بالشهر السابق من عناصر الصفحة
       const readMomComparison = () => {
         const currEl = document.getElementById("momCurrentVal");
         const prevEl = document.getElementById("momPrevVal");
@@ -2252,7 +2251,6 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      // مقارنة هذا الأسبوع مع الأسبوع السابق / الفترة السابقة
       const readWeekComparison = () => {
         let selWeekVal = null;
         let prevWeekVal = null;
@@ -2301,7 +2299,6 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      // استخراج أعلى فئة إنفاق من قائمة «الإنفاق حسب الفئة (الشهر المحدد)» / Chart.js
       const readCategoryChartTop = () => {
         try {
           const canvas = document.getElementById("categoryChart");
@@ -2334,7 +2331,6 @@ window.addEventListener("DOMContentLoaded", () => {
         return null;
       };
 
-      // قراءة بيانات فترة اليوم إن وُجدت في الواجهة
       const readDaySpendInfo = () => {
         try {
           const nodes = Array.prototype.slice.call(document.querySelectorAll("div, section, article, p, span"));
@@ -2403,6 +2399,15 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const buildWeekTopSpendReply = (ar) => {
+        try {
+          const bridgeTop = window.__sf2WeeklyTop;
+          if (bridgeTop && bridgeTop.name && Number(bridgeTop.amount) > 0) {
+            return ar
+              ? "📅 أكثر ما تم الصرف فيه خلال الأسبوع: **" + bridgeTop.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(bridgeTop.amount) + "**"
+              : "📅 Highest spending item this week: **" + bridgeTop.name + "**\n• Amount spent on this item: **" + fmtMoney(bridgeTop.amount) + "**";
+          }
+        } catch (_) {}
+
         const wk = readWeekComparison();
         if (wk.hasData && wk.selWeekVal !== null) {
           return ar
@@ -2626,8 +2631,8 @@ window.addEventListener("DOMContentLoaded", () => {
       renderUi();
       addMsg(
         isAr()
-          ? "جاهز. يمكنك طلب مقارنة هذا الأسبوع مع الأسبوع السابق، أو هذا الشهر مع الشهر السابق، أو معرفة أكثر فئة صرف خلال الشهر، أو حساب هدف ومدة من شهر إلى ٥ سنوات."
-          : "Ready. Ask to compare this week with the previous week, this month with the previous month, top spending category this month, or goal plans.",
+          ? "جاهز. يمكنك طلب مقارنة هذا الأسبوع مع الأسبوع السابق، أو هذا الشهر مع الشهر السابق، أو معرفة أكثر فئة صرف خلال الشهر أو الأسبوع، أو حساب هدف ومدة من شهر إلى ٥ سنوات."
+          : "Ready. Ask to compare this week with the previous week, this month with the previous month, top spending category, or goal plans.",
         false
       );
 
