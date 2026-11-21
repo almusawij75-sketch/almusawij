@@ -2755,10 +2755,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Loans Section v3 (Bilingual AR/EN + Paid & Remaining Percentages + Wallet/Expense Sync) -->
+  <!-- Loans Section v4 (Bilingual AR/EN + Edit Loan + Loan Payment History & Edit Payment + Percentages + Wallet/Expense Sync) -->
 <script>
 (function () {
-  function initLoansFeatureV3() {
+  function initLoansFeatureV4() {
     try {
       const STORAGE_KEY = "sf2_loans_backup_v1";
 
@@ -2784,13 +2784,24 @@ window.addEventListener("DOMContentLoaded", () => {
           paidWord: "المدفوع",
           remWord: "المتبقي",
           totalWord: "الكامل",
+          editLoanBtn: "تعديل القرض",
+          saveLoanEditBtn: "حفظ التعديل",
+          cancelBtn: "إلغاء",
+          historyBtn: "سجل الدفعات",
+          hideHistoryBtn: "إخفاء السجل",
+          noPayments: "لا توجد دفعات مسجلة لهذا القرض بعد.",
+          editPaymentBtn: "تعديل دفعة",
+          savePaymentEditBtn: "حفظ الدفعة",
           deleteBtn: "حذف",
           errLoanName: "يرجى إدخال اسم القرض.",
           errTotalAmt: "يرجى إدخال مبلغ كامل صحيح أكبر من صفر.",
+          errTotalBelowPaid: "لا يمكن أن يكون المبلغ الكامل أقل من المبلغ المدفوع حالياً.",
           errSelectLoan: "يرجى اختيار قرض.",
           errPayAmt: "يرجى إدخال مبلغ دفعة صحيح أكبر من صفر.",
-          errWalletLow: "رصيد المحفظة الحالية غير كافٍ لتغطية مبلغ الدفعة.",
+          errWalletLow: "رصيد المحفظة الحالية غير كافٍ لتغطية هذا المبلغ.",
           loanAdded: "تمت إضافة القرض بنجاح.",
+          loanUpdated: "تم تحديث بيانات القرض بنجاح.",
+          paymentUpdated: "تم تحديث الدفعة وضبط الحسابات بنجاح.",
           paidDone: "تم تسجيل الدفعة وخصمها من المحفظة وإضافتها للمصروفات."
         },
         en: {
@@ -2814,16 +2825,31 @@ window.addEventListener("DOMContentLoaded", () => {
           paidWord: "Paid",
           remWord: "Remaining",
           totalWord: "Total",
+          editLoanBtn: "Edit Loan",
+          saveLoanEditBtn: "Save Changes",
+          cancelBtn: "Cancel",
+          historyBtn: "Payment History",
+          hideHistoryBtn: "Hide History",
+          noPayments: "No payments recorded for this loan yet.",
+          editPaymentBtn: "Edit Payment",
+          savePaymentEditBtn: "Save Payment",
           deleteBtn: "Delete",
           errLoanName: "Please enter a loan name.",
           errTotalAmt: "Please enter a valid total amount greater than zero.",
+          errTotalBelowPaid: "Total loan amount cannot be less than the already paid amount.",
           errSelectLoan: "Please select a loan.",
           errPayAmt: "Please enter a valid payment amount greater than zero.",
           errWalletLow: "Current wallet balance is not enough for this payment.",
           loanAdded: "Loan added successfully.",
+          loanUpdated: "Loan details updated successfully.",
+          paymentUpdated: "Payment updated and balances reconciled successfully.",
           paidDone: "Payment recorded, deducted from wallet, and added to expenses."
         }
       };
+
+      const openHistoryLoanIds = new Set();
+      let editingLoanId = null;
+      let editingPaymentInfo = null; // { loanId, paymentId }
 
       const normNumInput = (val) => {
         const s = String(val ?? "")
@@ -2898,31 +2924,56 @@ window.addEventListener("DOMContentLoaded", () => {
 
       let localLoansFallback = readBackupLoans();
 
+      const normalizeLoan = (ln) => {
+        const totalAmount = Math.max(0, Number(ln && ln.totalAmount) || 0);
+        const rawPaid = Math.max(0, Number(ln && ln.paidAmount) || 0);
+        const paidAmount = Math.min(totalAmount > 0 ? totalAmount : rawPaid, rawPaid);
+        const payments = Array.isArray(ln && ln.payments)
+          ? ln.payments.map((pm) => ({
+              id: pm.id || String(Date.now() + Math.random()),
+              date: pm.date || new Date().toISOString().slice(0, 10),
+              amount: Math.max(0, Number(pm.amount) || 0),
+              note: String(pm.note || ""),
+              expenseId: pm.expenseId || null
+            }))
+          : [];
+        return {
+          id: (ln && ln.id) || String(Date.now() + Math.random()),
+          name: String((ln && ln.name) || ""),
+          totalAmount,
+          paidAmount,
+          payments
+        };
+      };
+
       const getLoans = () => {
         try {
           if (typeof state !== "undefined" && state) {
             if (Array.isArray(state.loans) && state.loans.length > 0) {
+              state.loans = state.loans.map(normalizeLoan);
               localLoansFallback = state.loans;
               writeBackupLoans(state.loans);
               return state.loans;
             }
             if (!Array.isArray(state.loans)) {
-              state.loans = localLoansFallback.length ? localLoansFallback.slice() : [];
+              state.loans = localLoansFallback.length ? localLoansFallback.map(normalizeLoan) : [];
             } else if (state.loans.length === 0 && localLoansFallback.length > 0) {
-              state.loans = localLoansFallback.slice();
+              state.loans = localLoansFallback.map(normalizeLoan);
             }
             return state.loans;
           }
         } catch (_) {}
+        localLoansFallback = localLoansFallback.map(normalizeLoan);
         return localLoansFallback;
       };
 
       const saveLoansAndApp = (loansArr) => {
-        localLoansFallback = Array.isArray(loansArr) ? loansArr : [];
-        writeBackupLoans(localLoansFallback);
+        const normalized = Array.isArray(loansArr) ? loansArr.map(normalizeLoan) : [];
+        localLoansFallback = normalized;
+        writeBackupLoans(normalized);
         try {
           if (typeof state !== "undefined" && state) {
-            state.loans = localLoansFallback;
+            state.loans = normalized;
           }
         } catch (_) {}
         try {
@@ -2944,6 +2995,34 @@ window.addEventListener("DOMContentLoaded", () => {
           }
         } catch (_) {}
         return "other";
+      };
+
+      const reconcileExpenseForPayment = (paymentObj, loanName, newAmountSar, newDate, newNote) => {
+        if (!paymentObj || !paymentObj.expenseId) return;
+        if (typeof state === "undefined" || !state || !Array.isArray(state.expenses)) return;
+        const expIdx = state.expenses.findIndex((x) => x && x.id === paymentObj.expenseId);
+        if (expIdx === -1) return;
+
+        const oldExpAmt = Number(state.expenses[expIdx].amount) || 0;
+        const diffSar = newAmountSar - oldExpAmt;
+
+        if (diffSar > 0) {
+          const curWallet = Number(state.walletBalance) || 0;
+          if (curWallet < diffSar) {
+            return { error: true };
+          }
+          state.walletBalance = curWallet - diffSar;
+        } else if (diffSar < 0) {
+          state.walletBalance = (Number(state.walletBalance) || 0) + Math.abs(diffSar);
+        }
+
+        state.expenses[expIdx] = {
+          ...state.expenses[expIdx],
+          date: newDate || state.expenses[expIdx].date,
+          amount: newAmountSar,
+          notes: newNote ? `${loanName} - ${newNote}` : `${loanName} (${txt().paidWord})`
+        };
+        return { error: false };
       };
 
       const mountTabAndPanel = () => {
@@ -3070,220 +3149,7 @@ window.addEventListener("DOMContentLoaded", () => {
         };
         const setPh = (id, val) => {
           const el = document.getElementById(id);
-          if (el) el.placeholder = val;
-        };
-
-        setText("lnTotalLbl", d.totalLabel);
-        setText("lnPaidLbl", d.paidLabel);
-        setText("lnRemLbl", d.remLabel);
-        setText("lnAddTitle", d.addLoanTitle);
-        setPh("lnNameInput", d.loanNamePh);
-        setPh("lnTotalInput", d.totalAmtPh);
-        setPh("lnInitialPaidInput", d.initialPaidPh);
-        setText("lnAddBtn", d.addLoanBtn);
-        setText("lnPayTitle", d.payLoanTitle);
-        setText("lnSelectLbl", d.selectLoanLabel);
-        setPh("lnPayAmtInput", d.payAmtPh);
-        setPh("lnPayNoteInput", d.payNotePh);
-        setText("lnPayBtn", d.payLoanBtn);
-        setText("lnListTitle", d.loansListTitle);
-
-        let totalSum = 0;
-        let paidSum = 0;
-        loans.forEach((ln) => {
-          const t = Number(ln.totalAmount) || 0;
-          const p = Math.min(t, Math.max(0, Number(ln.paidAmount) || 0));
-          totalSum += t;
-          paidSum += p;
-        });
-        const remSum = Math.max(0, totalSum - paidSum);
-
-        setText("lnTotalVal", fmtSAR(totalSum));
-        setText("lnPaidVal", fmtSAR(paidSum));
-        setText("lnPaidPct", fmtPct(paidSum, totalSum));
-        setText("lnRemVal", fmtSAR(remSum));
-        setText("lnRemPct", fmtPct(remSum, totalSum));
-
-        const selectEl = document.getElementById("lnSelectInput");
-        if (selectEl) {
-          const prevVal = selectEl.value;
-          selectEl.innerHTML = "";
-          loans.forEach((ln) => {
-            const t = Number(ln.totalAmount) || 0;
-            const p = Math.min(t, Math.max(0, Number(ln.paidAmount) || 0));
-            const rem = Math.max(0, t - p);
-            const opt = document.createElement("option");
-            opt.value = ln.id;
-            opt.textContent = `${ln.name} (${d.remWord}: ${fmtSAR(rem)} - ${fmtPct(rem, t)})`;
-            selectEl.appendChild(opt);
-          });
-          if (prevVal && loans.some((x) => x.id === prevVal)) {
-            selectEl.value = prevVal;
-          }
-        }
-
-        const listEl = document.getElementById("lnListContainer");
-        if (listEl) {
-          listEl.innerHTML = "";
-          if (!loans.length) {
-            const empty = document.createElement("div");
-            empty.className = "text-xs text-muted";
-            empty.textContent = d.noLoans;
-            listEl.appendChild(empty);
-            return;
-          }
-
-          loans.forEach((ln) => {
-            const t = Number(ln.totalAmount) || 0;
-            const p = Math.min(t, Math.max(0, Number(ln.paidAmount) || 0));
-            const r = Math.max(0, t - p);
-            const pPct = fmtPct(p, t);
-            const rPct = fmtPct(r, t);
-
-            const row = document.createElement("div");
-            row.className = "flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl border";
-            row.style.borderColor = "var(--border-color, #e5e7eb)";
-
-            const info = document.createElement("div");
-            info.className = "space-y-0.5 text-xs";
-            info.innerHTML = `
-              <div class="font-extrabold text-sm">${String(ln.name || "")}</div>
-              <div class="text-muted">${d.totalWord}: <strong>${fmtSAR(t)}</strong> • ${d.paidWord}: <strong>${fmtSAR(p)} (${pPct})</strong> • ${d.remWord}: <strong>${fmtSAR(r)} (${rPct})</strong></div>
-            `;
-
-            const delBtn = document.createElement("button");
-            delBtn.type = "button";
-            delBtn.className = "px-3 py-1 rounded-lg text-xs font-bold text-rose-600 border border-rose-200";
-            delBtn.textContent = d.deleteBtn;
-            delBtn.addEventListener("click", () => {
-              const currentLoans = getLoans();
-              const idx = currentLoans.findIndex((x) => x.id === ln.id);
-              if (idx !== -1) {
-                currentLoans.splice(idx, 1);
-                saveLoansAndApp(currentLoans);
-                renderLoansUI();
-              }
-            });
-
-            row.appendChild(info);
-            row.appendChild(delBtn);
-            listEl.appendChild(row);
-          });
-        }
-      };
-
-      const bindForms = () => {
-        const dateInp = document.getElementById("lnPayDateInput");
-        if (dateInp && !dateInp.value) {
-          try {
-            dateInp.value = new Date().toISOString().slice(0, 10);
-          } catch (_) {}
-        }
-
-        const addForm = document.getElementById("lnAddForm");
-        if (addForm) {
-          addForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const d = txt();
-            const nameEl = document.getElementById("lnNameInput");
-            const totalEl = document.getElementById("lnTotalInput");
-            const initPaidEl = document.getElementById("lnInitialPaidInput");
-
-            const name = String((nameEl && nameEl.value) || "").trim();
-            const totalSar = toSarValue(totalEl && totalEl.value);
-            const initPaidSar = Math.min(totalSar, Math.max(0, toSarValue(initPaidEl && initPaidEl.value)));
-
-            if (!name) return showFeedback(d.errLoanName, true, "lnAddFeedback");
-            if (!(totalSar > 0)) return showFeedback(d.errTotalAmt, true, "lnAddFeedback");
-
-            const loans = getLoans();
-            loans.push({
-              id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()),
-              name,
-              totalAmount: totalSar,
-              paidAmount: initPaidSar
-            });
-
-            if (nameEl) nameEl.value = "";
-            if (totalEl) totalEl.value = "";
-            if (initPaidEl) initPaidEl.value = "";
-
-            saveLoansAndApp(loans);
-            renderLoansUI();
-            showFeedback(d.loanAdded, false, "lnAddFeedback");
-          });
-        }
-
-        const payForm = document.getElementById("lnPayForm");
-        if (payForm) {
-          payForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const d = txt();
-            const selEl = document.getElementById("lnSelectInput");
-            const amtEl = document.getElementById("lnPayAmtInput");
-            const dtEl = document.getElementById("lnPayDateInput");
-            const noteEl = document.getElementById("lnPayNoteInput");
-
-            const loanId = selEl && selEl.value;
-            const paySar = toSarValue(amtEl && amtEl.value);
-            const payDate = (dtEl && dtEl.value) || (new Date().toISOString().slice(0, 10));
-            const noteText = String((noteEl && noteEl.value) || "").trim();
-
-            const loans = getLoans();
-            const targetLoan = loans.find((x) => x.id === loanId);
-            if (!targetLoan) return showFeedback(d.errSelectLoan, true, "lnFeedback");
-            if (!(paySar > 0)) return showFeedback(d.errPayAmt, true, "lnFeedback");
-
-            if (typeof state !== "undefined" && state) {
-              const currentWallet = Number(state.walletBalance) || 0;
-              if (currentWallet < paySar) {
-                return showFeedback(d.errWalletLow, true, "lnFeedback");
-              }
-              state.walletBalance = currentWallet - paySar;
-              if (!Array.isArray(state.expenses)) state.expenses = [];
-              state.expenses.push({
-                id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now() + Math.random()),
-                date: payDate,
-                amount: paySar,
-                categoryId: getLoanExpenseCategoryId(),
-                notes: noteText ? `${targetLoan.name} - ${noteText}` : `${targetLoan.name} (${d.paidWord})`
-              });
-            }
-
-            targetLoan.paidAmount = (Number(targetLoan.paidAmount) || 0) + paySar;
-
-            if (amtEl) amtEl.value = "";
-            if (noteEl) noteEl.value = "";
-
-            saveLoansAndApp(loans);
-            renderLoansUI();
-            showFeedback(d.paidDone, false, "lnFeedback");
-          });
-        }
-
-        const langBtn = document.getElementById("langToggleBtn");
-        if (langBtn) {
-          langBtn.addEventListener("click", () => {
-            setTimeout(renderLoansUI, 50);
-          });
-        }
-      };
-
-      mountTabAndPanel();
-      activateLoansTabIfClicked();
-      bindForms();
-      renderLoansUI();
-    } catch (err) {
-      if (window.console && console.warn) console.warn("Loans section v3 safe guard:", err);
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initLoansFeatureV3);
-  } else {
-    initLoansFeatureV3();
-  }
-})();
+          if (el) el.
 </script>
 </body>
 </html>
