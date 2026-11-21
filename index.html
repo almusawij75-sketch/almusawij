@@ -3485,5 +3485,67 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
+  <!-- Loans Tab Icon v1 (Matches Tab Icons Above Label + Bilingual AR/EN) -->
+<script>
+(function () {
+  function initLoansTabIcon() {
+    try {
+      const getLang = () => {
+        try {
+          if (typeof state !== "undefined" && state && (state.language === "en" || state.language === "ar")) {
+            return state.language;
+          }
+        } catch (_) {}
+        const langAttr = ((document.documentElement && document.documentElement.lang) || "").toLowerCase();
+        const dirAttr = ((document.documentElement && document.documentElement.dir) || "").toLowerCase();
+        return langAttr.indexOf("en") === 0 && dirAttr !== "rtl" ? "en" : "ar";
+      };
+
+      const renderLoansTabWithIcon = () => {
+        const btn = document.getElementById("loansNavTabBtn");
+        if (!btn) return;
+
+        const lang = getLang();
+        const label = lang === "en" ? "Loans" : "القروض";
+
+        btn.innerHTML = `
+          <span style="display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; line-height: 1.2;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="3" fill="#e2e8f0" stroke="#64748b" stroke-width="1.6"/>
+              <path d="M7 9h10M7 13h6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+              <circle cx="17" cy="15" r="3" fill="#f59e0b"/>
+            </svg>
+            <span>${label}</span>
+          </span>
+        `;
+      };
+
+      renderLoansTabWithIcon();
+
+      const langBtn = document.getElementById("langToggleBtn");
+      if (langBtn) {
+        langBtn.addEventListener("click", () => {
+          setTimeout(renderLoansTabWithIcon, 60);
+        });
+      }
+
+      const loansBtn = document.getElementById("loansNavTabBtn");
+      if (loansBtn) {
+        loansBtn.addEventListener("click", () => {
+          setTimeout(renderLoansTabWithIcon, 30);
+        });
+      }
+    } catch (err) {
+      if (window.console && console.warn) console.warn("Loans tab icon safe guard:", err);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initLoansTabIcon);
+  } else {
+    initLoansTabIcon();
+  }
+})();
+</script>
 </body>
 </html>
