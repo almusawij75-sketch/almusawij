@@ -3285,5 +3285,205 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
+  <!-- Mimi Theme v3 (Bilingual AR/EN: ثيم ميمي 🌸 / Mimi Theme 🌸 + Soft Warm Pink + Gentle Scattered Flowers) -->
+<script>
+(function () {
+  function initMimiTheme() {
+    try {
+      const THEME_VALUE = "mimi-theme";
+      const STYLE_ID = "sf2MimiThemeStyle";
+      const OVERLAY_ID = "sf2MimiThemeOverlay";
+
+      const THEME_LABELS = {
+        ar: "ثيم ميمي 🌸",
+        en: "Mimi Theme 🌸"
+      };
+
+      const getLang = () => {
+        try {
+          if (typeof state !== "undefined" && state && (state.language === "en" || state.language === "ar")) {
+            return state.language;
+          }
+        } catch (_) {}
+        const langAttr = ((document.documentElement && document.documentElement.lang) || "").toLowerCase();
+        const dirAttr = ((document.documentElement && document.documentElement.dir) || "").toLowerCase();
+        return langAttr.indexOf("en") === 0 && dirAttr !== "rtl" ? "en" : "ar";
+      };
+
+      const updateThemeOptionLabel = () => {
+        const sel = document.getElementById("themeSelect");
+        if (!sel) return null;
+
+        let opt = Array.from(sel.options).find((o) => o.value === THEME_VALUE);
+        if (!opt) {
+          opt = document.createElement("option");
+          opt.value = THEME_VALUE;
+          opt.setAttribute("data-i18n", "themeMimi");
+          sel.appendChild(opt);
+        }
+
+        const lang = getLang();
+        opt.textContent = THEME_LABELS[lang] || THEME_LABELS.ar;
+        return sel;
+      };
+
+      const injectThemeStyles = () => {
+        if (document.getElementById(STYLE_ID)) return;
+        const style = document.createElement("style");
+        style.id = STYLE_ID;
+        style.textContent = `
+          html[data-sf2-mimi-theme="1"],
+          body[data-sf2-mimi-theme="1"] {
+            --bg-main: #fff7f9;
+            --bg-card: #fffbfd;
+            --bg-subtle: #fdeef2;
+            --text-primary: #4e2330;
+            --text-secondary: #7b4353;
+            --border-color: #f3cdd6;
+            --accent: #c94b70;
+            --accent-hover: #b33b5f;
+          }
+
+          body[data-sf2-mimi-theme="1"] {
+            background: linear-gradient(180deg, #fff7f9 0%, #fdeef3 52%, #fff8fa 100%) !important;
+            color: #4e2330 !important;
+          }
+
+          body[data-sf2-mimi-theme="1"] .theme-card,
+          body[data-sf2-mimi-theme="1"] .bg-white,
+          body[data-sf2-mimi-theme="1"] [class*="bg-white"] {
+            background-color: rgba(255, 251, 253, 0.92) !important;
+            border-color: #f3cdd6 !important;
+          }
+
+          body[data-sf2-mimi-theme="1"] .theme-subtle {
+            background-color: rgba(253, 238, 243, 0.88) !important;
+            border-color: #f2c9d3 !important;
+          }
+
+          body[data-sf2-mimi-theme="1"] .theme-input {
+            background-color: #fffafd !important;
+            border-color: #efc4cf !important;
+            color: #4e2330 !important;
+          }
+
+          body[data-sf2-mimi-theme="1"] .btn-accent {
+            background-color: #c94b70 !important;
+            border-color: #c94b70 !important;
+            color: #ffffff !important;
+          }
+
+          body[data-sf2-mimi-theme="1"] .btn-accent:hover {
+            background-color: #b33b5f !important;
+          }
+
+          #${OVERLAY_ID} {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            user-select: none;
+            z-index: 0;
+            overflow: hidden;
+            display: none;
+          }
+
+          body[data-sf2-mimi-theme="1"] #${OVERLAY_ID} {
+            display: block;
+          }
+
+          .sf2-bg-flower {
+            position: absolute;
+            opacity: 0.16;
+            filter: saturate(0.8);
+          }
+        `;
+        document.head.appendChild(style);
+      };
+
+      const makeFlowerSvg = (size, petalMain, petalSoft, rot) => `
+        <svg width="${size}" height="${size}" viewBox="0 0 48 48" fill="none" style="transform: rotate(${rot}deg);" aria-hidden="true">
+          <circle cx="24" cy="11" r="7.2" fill="${petalMain}"/>
+          <circle cx="35.5" cy="19.5" r="7.2" fill="${petalSoft}"/>
+          <circle cx="31" cy="33.5" r="7.2" fill="${petalMain}"/>
+          <circle cx="17" cy="33.5" r="7.2" fill="${petalSoft}"/>
+          <circle cx="12.5" cy="19.5" r="7.2" fill="${petalMain}"/>
+          <circle cx="24" cy="24" r="5.5" fill="#fff3b0"/>
+        </svg>
+      `;
+
+      const ensureFloralOverlay = () => {
+        if (document.getElementById(OVERLAY_ID)) return;
+        const div = document.createElement("div");
+        div.id = OVERLAY_ID;
+        div.setAttribute("aria-hidden", "true");
+        div.innerHTML = `
+          <span class="sf2-bg-flower" style="top: 6%; left: 5%;">${makeFlowerSvg(34, "#f29cb5", "#fbd0dc", -14)}</span>
+          <span class="sf2-bg-flower" style="top: 12%; right: 7%;">${makeFlowerSvg(26, "#f5b0c4", "#fde2ea", 22)}</span>
+          <span class="sf2-bg-flower" style="top: 28%; left: 14%;">${makeFlowerSvg(22, "#f4a6bd", "#fbd6e1", 10)}</span>
+          <span class="sf2-bg-flower" style="top: 42%; right: 10%;">${makeFlowerSvg(32, "#f29cb5", "#fbd0dc", -24)}</span>
+          <span class="sf2-bg-flower" style="top: 60%; left: 7%;">${makeFlowerSvg(28, "#f5b0c4", "#fde2ea", 16)}</span>
+          <span class="sf2-bg-flower" style="top: 74%; right: 15%;">${makeFlowerSvg(24, "#f4a6bd", "#fbd6e1", -10)}</span>
+          <span class="sf2-bg-flower" style="bottom: 8%; left: 18%;">${makeFlowerSvg(30, "#f29cb5", "#fbd0dc", 28)}</span>
+          <span class="sf2-bg-flower" style="bottom: 6%; right: 6%;">${makeFlowerSvg(34, "#f5b0c4", "#fde2ea", -18)}</span>
+        `;
+        document.body.insertBefore(div, document.body.firstChild);
+      };
+
+      const isMimiActive = () => {
+        const sel = document.getElementById("themeSelect");
+        if (sel && sel.value === THEME_VALUE) return true;
+        try {
+          if (typeof state !== "undefined" && state && state.theme === THEME_VALUE) return true;
+        } catch (_) {}
+        return false;
+      };
+
+      const applyThemeState = () => {
+        updateThemeOptionLabel();
+        const active = isMimiActive();
+        if (active) {
+          document.body.setAttribute("data-sf2-mimi-theme", "1");
+          document.documentElement.setAttribute("data-sf2-mimi-theme", "1");
+          try {
+            if (typeof state !== "undefined" && state) {
+              state.theme = THEME_VALUE;
+            }
+          } catch (_) {}
+        } else {
+          document.body.removeAttribute("data-sf2-mimi-theme");
+          document.documentElement.removeAttribute("data-sf2-mimi-theme");
+        }
+      };
+
+      injectThemeStyles();
+      ensureFloralOverlay();
+      applyThemeState();
+
+      const sel = document.getElementById("themeSelect");
+      if (sel) {
+        sel.addEventListener("change", () => {
+          applyThemeState();
+          setTimeout(applyThemeState, 80);
+        });
+      }
+
+      const langBtn = document.getElementById("langToggleBtn");
+      if (langBtn) {
+        langBtn.addEventListener("click", () => {
+          setTimeout(applyThemeState, 80);
+        });
+      }
+    } catch (err) {
+      if (window.console && console.warn) console.warn("Mimi theme safe guard:", err);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initMimiTheme);
+  } else {
+    initMimiTheme();
+  }
+})();
+</script>
 </body>
 </html>
