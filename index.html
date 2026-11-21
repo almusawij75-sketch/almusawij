@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v10 -->
+  <!-- Smart Financial Assistant Widget v11 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2299,76 +2299,54 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      const isNonExpenseLabel = (txt) => {
-        return /هدف|الادخار|ادخار|محفظة|المحفظة|رصيد|الرصيد|إيداع|ايداع|إجمالي|اجمالي|مقارنة|شهر|أسبوع|اسبوع|تصدير|مساعد|حساب|تسجيل|دخول|خروج|إنفاق|انفاق|wallet|goal|saving|deposit|balance|total|compare|month|week/i.test(txt);
-      };
-
-      const readTopSpendingItem = () => {
+      // استخراج أعلى فئة إنفاق من قائمة «الإنفاق حسب الفئة (الشهر المحدد)» / Chart.js
+      const readCategoryChartTop = () => {
         try {
-          const candidates = [
-            window.transactions,
-            window.txs,
-            window.records,
-            window.entries,
-            typeof state !== "undefined" ? state && state.transactions : null
-          ];
-          for (let i = 0; i < candidates.length; i++) {
-            const arr = candidates[i];
-            if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === "object") {
-              const now = new Date();
-              const cy = now.getFullYear(), cm = now.getMonth();
-              const sums = {};
-              arr.forEach((it) => {
-                const typeStr = String((it && (it.type || it.kind || it.categoryType)) || "").toLowerCase();
-                const amt = Math.abs(Number(normDigits((it && (it.amount !== undefined ? it.amount : it.value)) || 0).replace(/,/g, "")));
-                if (!isFinite(amt) || amt <= 0) return;
-                if (typeStr.indexOf("deposit") !== -1 || typeStr.indexOf("income") !== -1 || typeStr.indexOf("إيداع") !== -1 || typeStr.indexOf("goal") !== -1 || typeStr.indexOf("saving") !== -1) return;
-                const rawDate = it && (it.date || it.createdAt || it.timestamp || it.txDate);
-                const d = rawDate ? new Date(rawDate) : now;
-                if (!isNaN(d.getTime()) && d.getFullYear() === cy && d.getMonth() === cm) {
-                  const label = String((it && (it.category || it.note || it.title || it.description)) || (isAr() ? "عام" : "General")).trim();
-                  if (!label || isNonExpenseLabel(label)) return;
-                  sums[label] = (sums[label] || 0) + amt;
+          const canvas = document.getElementById("categoryChart");
+          if (canvas && window.Chart) {
+            let chartInst = null;
+            if (typeof window.Chart.getChart === "function") {
+              chartInst = window.Chart.getChart(canvas);
+            }
+            if (!chartInst && window.Chart.instances) {
+              const vals = Object.values(window.Chart.instances);
+              chartInst = vals.find((c) => c && c.canvas === canvas) || null;
+            }
+            if (chartInst && chartInst.data && Array.isArray(chartInst.data.labels) && Array.isArray(chartInst.data.datasets) && chartInst.data.datasets[0]) {
+              const labels = chartInst.data.labels;
+              const dataArr = chartInst.data.datasets[0].data || [];
+              let best = null;
+              for (let i = 0; i < labels.length; i++) {
+                const lbl = String(labels[i] || "").trim();
+                const val = Number(normDigits(dataArr[i] || 0).replace(/,/g, ""));
+                if (!lbl || !isFinite(val) || val <= 0) continue;
+                if (!best || val > best.amount) {
+                  best = { name: lbl, amount: val };
                 }
-              });
-              const entries = Object.keys(sums).map((k) => ({ name: k, amount: sums[k] })).sort((a, b) => b.amount - a.amount);
-              if (entries.length > 0) return entries[0];
+              }
+              if (best) return best;
             }
           }
         } catch (_) {}
 
         try {
-          const nodes = Array.prototype.slice.call(document.querySelectorAll("div, li, tr, section, article"));
-          let best = null;
-          for (let i = 0; i < nodes.length; i++) {
-            const el = nodes[i];
-            if (!el || (el.closest && el.closest("#sf2Widget"))) continue;
-            if (el.children && el.children.length > 5) continue;
-            const raw = normDigits(el.innerText || "").trim();
-            if (!raw || raw.length > 140) continue;
-            if (isNonExpenseLabel(raw)) continue;
-
-            const matches = raw.match(/([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)\s*(?:SAR|ر\.س)?/gi);
-            if (!matches || matches.length !== 1) continue;
-
-            const amt = parseNum(matches[0]);
-            if (amt === null || amt <= 0 || amt >= 10000000) continue;
-
-            const namePart = raw
-              .replace(matches[0], "")
-              .replace(/SAR|ر\.س/gi, "")
-              .replace(/[:\-–—|•]/g, " ")
-              .replace(/\s+/g, " ")
-              .trim();
-
-            if (!namePart || namePart.length < 2 || namePart.length > 45) continue;
-            if (isNonExpenseLabel(namePart)) continue;
-
-            if (!best || amt > best.amount) {
-              best = { name: namePart, amount: amt };
+          const sections = Array.prototype.slice.call(document.querySelectorAll("div, section, article"));
+          for (let i = 0; i < sections.length; i++) {
+            const sec = sections[i];
+            if (!sec || (sec.closest && sec.closest("#sf2Widget"))) continue;
+            const txt = normDigits(sec.innerText || "");
+            if (txt.indexOf("الإنفاق حسب الفئة") !== -1 || txt.toLowerCase().indexOf("spending by category") !== -1) {
+              const knownCats = [
+                "Past Due", "Utilites", "Utilities", "SIM Bill", "Groceries",
+                "Tabby & Tamara", "Car Fuel", "Restaurant", "Car Wash",
+                "Break Groceries", "Other", "Hospital Fees", "Online Purchase"
+              ];
+              const found = knownCats.filter((c) => txt.toLowerCase().indexOf(c.toLowerCase()) !== -1);
+              if (found.length > 0) {
+                return { name: found[0], amount: null, fromListOnly: true, allCats: found };
+              }
             }
           }
-          if (best) return best;
         } catch (_) {}
 
         return null;
@@ -2409,15 +2387,20 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const buildTopSpendReply = (ar) => {
-        const top = readTopSpendingItem();
+        const top = readCategoryChartTop();
         if (!top) {
           return ar
-            ? "لم يتم العثور على تفاصيل عناصر أو فئات مصروفات فعلية في الصفحة حالياً."
-            : "No actual expense item or category details were found on the page right now.";
+            ? "لم يتم العثور على بيانات قائمة «الإنفاق حسب الفئة (الشهر المحدد)» حالياً."
+            : "Spending by category data for the selected month was not found right now.";
+        }
+        if (top.amount !== null && !top.fromListOnly) {
+          return ar
+            ? "📌 أكثر فئة صرف في قائمة «الإنفاق حسب الفئة (الشهر المحدد)»: **" + top.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(top.amount) + "**"
+            : "📌 Top category in Spending by Category (Selected Month): **" + top.name + "**\n• Amount spent on this item: **" + fmtMoney(top.amount) + "**";
         }
         return ar
-          ? "📌 أكثر ما تم الصرف فيه خلال الشهر: **" + top.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(top.amount) + "**"
-          : "📌 Highest spending item this month: **" + top.name + "**\n• Amount spent on this item: **" + fmtMoney(top.amount) + "**";
+          ? "📌 فئات القائمة الظاهرة في «الإنفاق حسب الفئة (الشهر المحدد)» تشمل: **" + top.allCats.join("، ") + "**\n• الأرقام التفصيلية لكل فئة مرسومة داخل الرسم البياني ولا تعرض قيمة رقمية مستقلة لكل بند في النص."
+          : "📌 Categories listed under Spending by Category include: **" + top.allCats.join(", ") + "**\n• Individual category amounts are rendered inside the chart canvas.";
       };
 
       const buildMonthComparisonReply = (ar) => {
