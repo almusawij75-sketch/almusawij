@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v8 -->
+  <!-- Smart Financial Assistant Widget v9 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2226,7 +2226,6 @@ window.addEventListener("DOMContentLoaded", () => {
         return isAr() ? val + " SAR" : "SAR " + val;
       };
 
-      // قراءة مقارنة الشهر الحالي بالشهر السابق مباشرة من عناصر الصفحة
       const readMomComparison = () => {
         const currEl = document.getElementById("momCurrentVal");
         const prevEl = document.getElementById("momPrevVal");
@@ -2252,7 +2251,6 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      // قراءة مقارنة الأسبوع المحدد في نفس الشهر من العناصر الظاهرة في الصفحة
       const readWeekComparison = () => {
         let selWeekVal = null;
         let prevWeekVal = null;
@@ -2285,7 +2283,6 @@ window.addEventListener("DOMContentLoaded", () => {
           }
         } catch (_) {}
 
-        // محاولة استخراج نص إضافي من نطاق الأسبوع المحدد في نفس الشهر إن وُجد
         try {
           const rangeEl = document.getElementById("filterWeekRange");
           if (rangeEl) {
@@ -2302,7 +2299,10 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      // البحث عن أعلى عنصر/فئة صرف خلال الشهر
+      const isNonExpenseLabel = (txt) => {
+        return /هدف|الادخار|ادخار|رصيد|الرصيد|إيداع|ايداع|إجمالي|اجمالي|مقارنة|شهر|أسبوع|اسبوع|تصدير|مساعد|حساب|تسجيل|دخول|خروج|goal|saving|deposit|balance|total|compare|month|week/i.test(txt);
+      };
+
       const readTopSpendingItem = () => {
         try {
           const candidates = [
@@ -2322,11 +2322,12 @@ window.addEventListener("DOMContentLoaded", () => {
                 const typeStr = String((it && (it.type || it.kind || it.categoryType)) || "").toLowerCase();
                 const amt = Math.abs(Number(normDigits((it && (it.amount !== undefined ? it.amount : it.value)) || 0).replace(/,/g, "")));
                 if (!isFinite(amt) || amt <= 0) return;
-                if (typeStr.indexOf("deposit") !== -1 || typeStr.indexOf("income") !== -1 || typeStr.indexOf("إيداع") !== -1) return;
+                if (typeStr.indexOf("deposit") !== -1 || typeStr.indexOf("income") !== -1 || typeStr.indexOf("إيداع") !== -1 || typeStr.indexOf("goal") !== -1 || typeStr.indexOf("saving") !== -1) return;
                 const rawDate = it && (it.date || it.createdAt || it.timestamp || it.txDate);
                 const d = rawDate ? new Date(rawDate) : now;
                 if (!isNaN(d.getTime()) && d.getFullYear() === cy && d.getMonth() === cm) {
                   const label = String((it && (it.category || it.note || it.title || it.description)) || (isAr() ? "عام" : "General")).trim();
+                  if (!label || isNonExpenseLabel(label)) return;
                   sums[label] = (sums[label] || 0) + amt;
                 }
               });
@@ -2345,6 +2346,7 @@ window.addEventListener("DOMContentLoaded", () => {
             if (el.children && el.children.length > 5) continue;
             const raw = normDigits(el.innerText || "").trim();
             if (!raw || raw.length > 140) continue;
+            if (isNonExpenseLabel(raw)) continue;
 
             const matches = raw.match(/([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)\s*(?:SAR|ر\.س)?/gi);
             if (!matches || matches.length !== 1) continue;
@@ -2360,7 +2362,7 @@ window.addEventListener("DOMContentLoaded", () => {
               .trim();
 
             if (!namePart || namePart.length < 2 || namePart.length > 45) continue;
-            if (/الشهر|شهر|السابق|الماضي|الحالي|الأسبوع|اسبوع|إجمالي|اجمالي|مقارنة|تصدير|مساعد|حساب|تسجيل|دخول|خروج/i.test(namePart)) continue;
+            if (isNonExpenseLabel(namePart)) continue;
 
             if (!best || amt > best.amount) {
               best = { name: namePart, amount: amt };
@@ -2410,8 +2412,8 @@ window.addEventListener("DOMContentLoaded", () => {
         const top = readTopSpendingItem();
         if (!top) {
           return ar
-            ? "لم يتم العثور على تفاصيل عناصر/فئات الصرف الشهرية في الصفحة حالياً."
-            : "Monthly spending item/category details were not found on the page right now.";
+            ? "لم يتم العثور على تفاصيل عناصر أو فئات مصروفات فعلية في الصفحة حالياً."
+            : "No actual expense item or category details were found on the page right now.";
         }
         return ar
           ? "📌 أكثر ما تم الصرف فيه خلال الشهر: **" + top.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(top.amount) + "**"
@@ -2487,7 +2489,6 @@ window.addEventListener("DOMContentLoaded", () => {
         const q = normDigits(String(rawQ || "").trim().toLowerCase());
         const ar = isAr();
 
-        // سؤال عن أكثر ما صُرف فيه خلال الشهر ومقداره
         if (
           q.indexOf("صرفت اكثر") !== -1 ||
           q.indexOf("أكثر شي") !== -1 ||
@@ -2503,7 +2504,6 @@ window.addEventListener("DOMContentLoaded", () => {
           return buildTopSpendReply(ar);
         }
 
-        // سؤال عن مقارنة الأسبوع المحدد في نفس الشهر
         if (
           q.indexOf("الأسبوع المحدد") !== -1 ||
           q.indexOf("الاسبوع المحدد") !== -1 ||
@@ -2515,7 +2515,6 @@ window.addEventListener("DOMContentLoaded", () => {
           return buildWeekComparisonReply(ar);
         }
 
-        // سؤال عن مقارنة الشهر الحالي بالشهر السابق
         if (
           q.indexOf("مقارن") !== -1 ||
           q.indexOf("الشهر السابق") !== -1 ||
@@ -2528,7 +2527,6 @@ window.addEventListener("DOMContentLoaded", () => {
           return buildMonthComparisonReply(ar);
         }
 
-        // سؤال عن الأهداف والفترات من شهر إلى 5 سنوات
         const goalVal = parseGoal(q);
         const monthsVal = parseMonths(q);
 
