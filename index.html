@@ -2755,16 +2755,16 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Loans Section v2 (Bilingual AR/EN + Guaranteed Display, LocalStorage Backup & Wallet/Expense Sync) -->
+  <!-- Loans Section v3 (Bilingual AR/EN + Paid & Remaining Percentages + Wallet/Expense Sync) -->
 <script>
 (function () {
-  function initLoansFeatureV2() {
+  function initLoansFeatureV3() {
     try {
       const STORAGE_KEY = "sf2_loans_backup_v1";
 
       const LOANS_TEXT = {
         ar: {
-          tabLabel: "💳 القروض",
+          tabLabel: "القروض",
           totalLabel: "المبلغ الكامل",
           paidLabel: "المبلغ المدفوع",
           remLabel: "المبلغ المتبقي",
@@ -2794,7 +2794,7 @@ window.addEventListener("DOMContentLoaded", () => {
           paidDone: "تم تسجيل الدفعة وخصمها من المحفظة وإضافتها للمصروفات."
         },
         en: {
-          tabLabel: "💳 Loans",
+          tabLabel: "Loans",
           totalLabel: "Total Loan Amount",
           paidLabel: "Paid Amount",
           remLabel: "Remaining Balance",
@@ -2855,6 +2855,14 @@ window.addEventListener("DOMContentLoaded", () => {
           maximumFractionDigits: 2
         });
         return getLang() === "en" ? "SAR " + formatted : formatted + " SAR";
+      };
+
+      const fmtPct = (part, total) => {
+        const p = Number(part || 0);
+        const t = Number(total || 0);
+        if (!(t > 0) || !isFinite(p)) return "0.0%";
+        const pct = Math.max(0, Math.min(100, (p / t) * 100));
+        return pct.toFixed(1) + "%";
       };
 
       const toSarValue = (rawVal) => {
@@ -2967,11 +2975,17 @@ window.addEventListener("DOMContentLoaded", () => {
               </div>
               <div class="theme-subtle rounded-2xl p-4 space-y-1">
                 <div class="text-xs font-semibold text-muted" id="lnPaidLbl"></div>
-                <div class="text-lg font-extrabold text-emerald-600" id="lnPaidVal">0.00 SAR</div>
+                <div class="flex items-baseline justify-between gap-2 flex-wrap">
+                  <span class="text-lg font-extrabold text-emerald-600" id="lnPaidVal">0.00 SAR</span>
+                  <span class="text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700" id="lnPaidPct">0.0%</span>
+                </div>
               </div>
               <div class="theme-subtle rounded-2xl p-4 space-y-1">
                 <div class="text-xs font-semibold text-muted" id="lnRemLbl"></div>
-                <div class="text-lg font-extrabold text-rose-600" id="lnRemVal">0.00 SAR</div>
+                <div class="flex items-baseline justify-between gap-2 flex-wrap">
+                  <span class="text-lg font-extrabold text-rose-600" id="lnRemVal">0.00 SAR</span>
+                  <span class="text-xs font-extrabold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700" id="lnRemPct">0.0%</span>
+                </div>
               </div>
             </div>
 
@@ -3086,17 +3100,21 @@ window.addEventListener("DOMContentLoaded", () => {
 
         setText("lnTotalVal", fmtSAR(totalSum));
         setText("lnPaidVal", fmtSAR(paidSum));
+        setText("lnPaidPct", fmtPct(paidSum, totalSum));
         setText("lnRemVal", fmtSAR(remSum));
+        setText("lnRemPct", fmtPct(remSum, totalSum));
 
         const selectEl = document.getElementById("lnSelectInput");
         if (selectEl) {
           const prevVal = selectEl.value;
           selectEl.innerHTML = "";
           loans.forEach((ln) => {
-            const rem = Math.max(0, (Number(ln.totalAmount) || 0) - (Number(ln.paidAmount) || 0));
+            const t = Number(ln.totalAmount) || 0;
+            const p = Math.min(t, Math.max(0, Number(ln.paidAmount) || 0));
+            const rem = Math.max(0, t - p);
             const opt = document.createElement("option");
             opt.value = ln.id;
-            opt.textContent = `${ln.name} (${d.remWord}: ${fmtSAR(rem)})`;
+            opt.textContent = `${ln.name} (${d.remWord}: ${fmtSAR(rem)} - ${fmtPct(rem, t)})`;
             selectEl.appendChild(opt);
           });
           if (prevVal && loans.some((x) => x.id === prevVal)) {
@@ -3119,6 +3137,8 @@ window.addEventListener("DOMContentLoaded", () => {
             const t = Number(ln.totalAmount) || 0;
             const p = Math.min(t, Math.max(0, Number(ln.paidAmount) || 0));
             const r = Math.max(0, t - p);
+            const pPct = fmtPct(p, t);
+            const rPct = fmtPct(r, t);
 
             const row = document.createElement("div");
             row.className = "flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl border";
@@ -3128,7 +3148,7 @@ window.addEventListener("DOMContentLoaded", () => {
             info.className = "space-y-0.5 text-xs";
             info.innerHTML = `
               <div class="font-extrabold text-sm">${String(ln.name || "")}</div>
-              <div class="text-muted">${d.totalWord}: <strong>${fmtSAR(t)}</strong> • ${d.paidWord}: <strong>${fmtSAR(p)}</strong> • ${d.remWord}: <strong>${fmtSAR(r)}</strong></div>
+              <div class="text-muted">${d.totalWord}: <strong>${fmtSAR(t)}</strong> • ${d.paidWord}: <strong>${fmtSAR(p)} (${pPct})</strong> • ${d.remWord}: <strong>${fmtSAR(r)} (${rPct})</strong></div>
             `;
 
             const delBtn = document.createElement("button");
@@ -3254,14 +3274,14 @@ window.addEventListener("DOMContentLoaded", () => {
       bindForms();
       renderLoansUI();
     } catch (err) {
-      if (window.console && console.warn) console.warn("Loans section v2 safe guard:", err);
+      if (window.console && console.warn) console.warn("Loans section v3 safe guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initLoansFeatureV2);
+    document.addEventListener("DOMContentLoaded", initLoansFeatureV3);
   } else {
-    initLoansFeatureV2();
+    initLoansFeatureV3();
   }
 })();
 </script>
