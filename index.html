@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v15 -->
+  <!-- Smart Financial Assistant Widget v16 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2226,6 +2226,12 @@ window.addEventListener("DOMContentLoaded", () => {
         return isAr() ? val + " SAR" : "SAR " + val;
       };
 
+      const knownCats = [
+        "Past Due", "Utilites", "Utilities", "SIM Bill", "Groceries",
+        "Tabby & Tamara", "Car Fuel", "Restaurant", "Car Wash",
+        "Break Groceries", "Other", "Hospital Fees", "Online Purchase"
+      ];
+
       const readMomComparison = () => {
         const currEl = document.getElementById("momCurrentVal");
         const prevEl = document.getElementById("momPrevVal");
@@ -2276,26 +2282,19 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      // قراءة أعلى فئة ومجموع صرفها من جدول المعاملات الظاهر حالياً في الصفحة
-      const readVisibleTableTopCategory = () => {
+      // تجميع كل الفئات من جدول المعاملات المعروض حالياً
+      const readVisibleTableTotals = () => {
         try {
           const tbody = document.getElementById("expensesTableBody");
-          if (!tbody) return null;
+          if (!tbody) return {};
           const rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
-          if (!rows.length) return null;
-
-          const knownCats = [
-            "Past Due", "Utilites", "Utilities", "SIM Bill", "Groceries",
-            "Tabby & Tamara", "Car Fuel", "Restaurant", "Car Wash",
-            "Break Groceries", "Other", "Hospital Fees", "Online Purchase"
-          ];
+          if (!rows.length) return {};
 
           const totals = {};
           rows.forEach((tr) => {
             const rawTxt = normDigits(tr.innerText || "").trim();
             if (!rawTxt) return;
 
-            // استخراج المبلغ من النص (نبحث عن رقم عشري أو رقم بفواصل مثل 407.00 أو 1,511.00)
             const cleanedForNums = rawTxt
               .replace(/\b(edit|delete|تعديل|حذف)\b/gi, " ")
               .replace(/\b(20\d{2}[-/]\d{1,2}[-/]\d{1,2})\b/g, " ");
@@ -2306,7 +2305,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
             const amt = nums[0];
 
-            // استخراج اسم الفئة من عناصر الصف أو المطابقة مع الفئات المعروفة
             let catName = "";
             const cells = Array.prototype.slice.call(tr.querySelectorAll("td, span, button, div"));
             for (let c = 0; c < cells.length; c++) {
@@ -2329,17 +2327,22 @@ window.addEventListener("DOMContentLoaded", () => {
             totals[catName] = (totals[catName] || 0) + amt;
           });
 
-          const list = Object.keys(totals)
-            .map((k) => ({ name: k, amount: totals[k] }))
-            .sort((a, b) => b.amount - a.amount);
-
-          return list.length > 0 ? list[0] : null;
+          return totals;
         } catch (_) {
-          return null;
+          return {};
         }
       };
 
-      const readCategoryChartTop = () => {
+      const readVisibleTableTopCategory = () => {
+        const totals = readVisibleTableTotals();
+        const list = Object.keys(totals)
+          .map((k) => ({ name: k, amount: totals[k] }))
+          .sort((a, b) => b.amount - a.amount);
+        return list.length > 0 ? list[0] : null;
+      };
+
+      const readCategoryChartMap = () => {
+        const map = {};
         try {
           const canvas = document.getElementById("categoryChart");
           if (canvas && window.Chart) {
@@ -2354,21 +2357,77 @@ window.addEventListener("DOMContentLoaded", () => {
             if (chartInst && chartInst.data && Array.isArray(chartInst.data.labels) && Array.isArray(chartInst.data.datasets) && chartInst.data.datasets[0]) {
               const labels = chartInst.data.labels;
               const dataArr = chartInst.data.datasets[0].data || [];
-              let best = null;
               for (let i = 0; i < labels.length; i++) {
                 const lbl = String(labels[i] || "").trim();
                 const val = Number(normDigits(dataArr[i] || 0).replace(/,/g, ""));
                 if (!lbl || !isFinite(val) || val <= 0) continue;
-                if (!best || val > best.amount) {
-                  best = { name: lbl, amount: val };
-                }
+                map[lbl.toLowerCase()] = { name: lbl, amount: val };
               }
-              if (best) return best;
             }
           }
         } catch (_) {}
+        return map;
+      };
 
+      const readCategoryChartTop = () => {
+        const map = readCategoryChartMap();
+        const list = Object.keys(map).map((k) => map[k]).sort((a, b) => b.amount - a.amount);
+        return list.length > 0 ? list[0] : null;
+      };
+
+      const detectSpecificCategory = (q) => {
+        const cleanQ = normDigits(String(q || "")).toLowerCase();
+        for (let i = 0; i < knownCats.length; i++) {
+          const kc = knownCats[i];
+          const kLower = kc.toLowerCase();
+          if (cleanQ.indexOf(kLower) !== -1) {
+            return kc === "Utilities" ? "Utilites" : kc;
+          }
+        }
         return null;
+      };
+
+      const buildSpecificCategoryReply = (catName, ar, preferWeek) => {
+        const lower = String(catName || "").toLowerCase();
+        const tableTotals = readVisibleTableTotals();
+        const chartMap = readCategoryChartMap();
+
+        let tableVal = null;
+        Object.keys(tableTotals).forEach((k) => {
+          if (k.toLowerCase() === lower || (lower === "utilites" && k.toLowerCase() === "utilities")) {
+            tableVal = tableTotals[k];
+          }
+        });
+
+        const chartEntry = chartMap[lower] || (lower === "utilites" ? chartMap["utilities"] : null);
+
+        if (preferWeek && tableVal !== null) {
+          return ar
+            ? "📌 الصرف في فئة **" + catName + "** حسب جدول المعاملات المعروض حالياً: **" + fmtMoney(tableVal) + "**"
+            : "📌 Spending in **" + catName + "** from the visible transactions table: **" + fmtMoney(tableVal) + "**";
+        }
+
+        if (chartEntry) {
+          let extra = "";
+          if (tableVal !== null) {
+            extra = ar
+              ? "\n• في الجدول المعروض حالياً: **" + fmtMoney(tableVal) + "**"
+              : "\n• In currently visible table: **" + fmtMoney(tableVal) + "**";
+          }
+          return ar
+            ? "📌 الصرف في فئة **" + chartEntry.name + "** (الشهر المحدد): **" + fmtMoney(chartEntry.amount) + "**" + extra
+            : "📌 Spending in **" + chartEntry.name + "** (Selected Month): **" + fmtMoney(chartEntry.amount) + "**" + extra;
+        }
+
+        if (tableVal !== null) {
+          return ar
+            ? "📌 الصرف في فئة **" + catName + "** حسب جدول المعاملات المعروض حالياً: **" + fmtMoney(tableVal) + "**"
+            : "📌 Spending in **" + catName + "** from the visible table: **" + fmtMoney(tableVal) + "**";
+        }
+
+        return ar
+          ? "لا يوجد صرف مسجل لفئة **" + catName + "** في البيانات الظاهرة حالياً."
+          : "No spending recorded for **" + catName + "** in the currently visible data.";
       };
 
       const parseGoal = (q) => {
@@ -2522,7 +2581,12 @@ window.addEventListener("DOMContentLoaded", () => {
         const isDayScope = q.indexOf("يوم") !== -1 || q.indexOf("اليوم") !== -1 || q.indexOf("day") !== -1 || q.indexOf("today") !== -1;
         const isMonthScope = q.indexOf("شهر") !== -1 || q.indexOf("month") !== -1;
         const isCompareIntent = q.indexOf("مقارن") !== -1 || q.indexOf("مع") !== -1 || q.indexOf("السابق") !== -1 || q.indexOf("الماضي") !== -1 || q.indexOf("compare") !== -1;
-        const isTopIntent = q.indexOf("صرفت") !== -1 || q.indexOf("أكثر") !== -1 || q.indexOf("اكثر") !== -1 || q.indexOf("عنصر") !== -1 || q.indexOf("فئة") !== -1 || q.indexOf("top") !== -1;
+        const isTopIntent = q.indexOf("أكثر") !== -1 || q.indexOf("اكثر") !== -1 || q.indexOf("top") !== -1 || q.indexOf("وش صرفت") !== -1;
+
+        const specificCat = detectSpecificCategory(q);
+        if (specificCat && !isTopIntent) {
+          return buildSpecificCategoryReply(specificCat, ar, isWeekScope && !isMonthScope);
+        }
 
         if (isCompareIntent && isWeekScope && !isMonthScope) {
           return buildWeekComparisonReply(ar);
@@ -2532,7 +2596,7 @@ window.addEventListener("DOMContentLoaded", () => {
           return buildMonthComparisonReply(ar);
         }
 
-        if (isTopIntent) {
+        if (isTopIntent || q.indexOf("صرفت") !== -1 || q.indexOf("عنصر") !== -1 || q.indexOf("فئة") !== -1) {
           if (isWeekScope && !isMonthScope) {
             return buildWeekTopSpendReply(ar);
           }
@@ -2590,8 +2654,8 @@ window.addEventListener("DOMContentLoaded", () => {
         }
 
         return ar
-          ? "يمكنك السؤال عن:\n• «هذا الأسبوع مع الأسبوع السابق»\n• «هذا الشهر مع الشهر السابق»\n• «وش صرفت أكثر شي خلال الشهر»\n• أو تحديد هدف ومدة مثل: «هدف ٢٠٠ ألف لمدة سنتين»."
-          : "You can ask about:\n• «This week vs previous week»\n• «This month vs previous month»\n• «Highest spending item this month»\n• Or a goal & duration like «goal 200000 in 2 years».";
+          ? "يمكنك السؤال عن:\n• «هذا الأسبوع مع الأسبوع السابق»\n• «هذا الشهر مع الشهر السابق»\n• «وش صرفت أكثر شي خلال الشهر أو الأسبوع»\n• أو اسم فئة مثل: «كم صرفت في restaurant» أو «car wash»."
+          : "You can ask about:\n• «This week vs previous week»\n• «This month vs previous month»\n• «Highest spending item this month or week»\n• Or a category like «restaurant» or «car wash».";
       };
 
       const addMsg = (txt, isUser) => {
@@ -2626,7 +2690,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         if (lbl) lbl.textContent = ar ? "المساعد المالي" : "AI Advisor";
         if (ttl) ttl.textContent = ar ? "🤖 المساعد المالي الذكي" : "🤖 Smart Financial Advisor";
-        if (inp) inp.placeholder = ar ? "اسأل عن الأسبوع، الشهر، أكثر صرف، أو هدف..." : "Ask week, month, top spend, or goal...";
+        if (inp) inp.placeholder = ar ? "اسأل عن الأسبوع، الشهر، فئة، أو هدف..." : "Ask week, month, category, or goal...";
         if (snd) snd.textContent = ar ? "إرسال" : "Send";
 
         const chips = ar
@@ -2649,8 +2713,8 @@ window.addEventListener("DOMContentLoaded", () => {
       renderUi();
       addMsg(
         isAr()
-          ? "جاهز. يمكنك طلب مقارنة هذا الأسبوع مع الأسبوع السابق، أو هذا الشهر مع الشهر السابق، أو معرفة أكثر فئة صرف خلال الشهر أو الأسبوع، أو حساب هدف ومدة من شهر إلى ٥ سنوات."
-          : "Ready. Ask to compare this week with the previous week, this month with the previous month, top spending category, or goal plans.",
+          ? "جاهز. يمكنك طلب مقارنة هذا الأسبوع مع الأسبوع السابق، أو هذا الشهر مع الشهر السابق، أو معرفة أكثر فئة صرف، أو السؤال عن فئة محددة مثل «restaurant» أو «car wash»."
+          : "Ready. Ask to compare weeks or months, check top spending category, or ask about a specific category like «restaurant» or «car wash».",
         false
       );
 
