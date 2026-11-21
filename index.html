@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v6 (Safe Mode) -->
+  <!-- Smart Financial Assistant Widget v8 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2182,7 +2182,7 @@ window.addEventListener("DOMContentLoaded", () => {
   <div id="sf2Panel"
     style="display:none;width:min(375px,calc(100vw - 32px));max-height:78vh;margin-bottom:12px;background:#fff;color:#111827;border-radius:20px;box-shadow:0 20px 45px rgba(0,0,0,0.22);border:1px solid #e5e7eb;overflow:hidden;flex-direction:column;">
     <div style="padding:12px 14px;background:#9a3412;color:#fff;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-weight:700;font-size:13px;" id="sf2Title">🤖 مساعد جواد المالي</div>
+      <div style="font-weight:700;font-size:13px;" id="sf2Title">🤖 المساعد المالي الذكي</div>
       <button id="sf2CloseBtn" type="button"
         style="background:rgba(255,255,255,0.18);border:none;color:#fff;border-radius:8px;padding:2px 8px;cursor:pointer;font-weight:700;">✕</button>
     </div>
@@ -2209,15 +2209,167 @@ window.addEventListener("DOMContentLoaded", () => {
           .replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)])
           .replace(/[۰-۹]/g, (d) => "0123456789"["۰۱۲۳۴۵۶۷۸۹".indexOf(d)]);
 
+      const parseNum = (s) => {
+        const cleaned = normDigits(String(s || "")).replace(/[^0-9.-]/g, "");
+        const n = Number(cleaned);
+        return isFinite(n) ? n : null;
+      };
+
       const isAr = () => {
         const dir = ((document.documentElement && document.documentElement.dir) || (document.body && document.body.dir) || "").toLowerCase();
         const lang = ((document.documentElement && document.documentElement.lang) || "").toLowerCase();
-        return dir === "rtl" || lang.indexOf("ar") === 0 || ((document.body && document.body.innerText) || "").indexOf("الإدارة المالية") !== -1;
+        return dir === "rtl" || lang.indexOf("ar") === 0 || ((document.body && document.body.innerText) || "").indexOf("إجمالي الإيداعات") !== -1;
       };
 
       const fmtMoney = (n) => {
         const val = Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         return isAr() ? val + " SAR" : "SAR " + val;
+      };
+
+      // قراءة مقارنة الشهر الحالي بالشهر السابق مباشرة من عناصر الصفحة
+      const readMomComparison = () => {
+        const currEl = document.getElementById("momCurrentVal");
+        const prevEl = document.getElementById("momPrevVal");
+        const diffEl = document.getElementById("momDiffText");
+        const badgeEl = document.getElementById("momBadge");
+
+        const currRaw = currEl ? (currEl.innerText || currEl.textContent || "").trim() : "";
+        const prevRaw = prevEl ? (prevEl.innerText || prevEl.textContent || "").trim() : "";
+        const diffRaw = diffEl ? (diffEl.innerText || diffEl.textContent || "").trim() : "";
+        const badgeRaw = badgeEl ? (badgeEl.innerText || badgeEl.textContent || "").trim() : "";
+
+        const currNum = parseNum(currRaw);
+        const prevNum = parseNum(prevRaw);
+
+        return {
+          hasData: currNum !== null || prevNum !== null || Boolean(currRaw) || Boolean(prevRaw),
+          currText: currRaw || (currNum !== null ? fmtMoney(currNum) : ""),
+          prevText: prevRaw || (prevNum !== null ? fmtMoney(prevNum) : ""),
+          currNum,
+          prevNum,
+          diffText: diffRaw,
+          badgeText: badgeRaw
+        };
+      };
+
+      // قراءة مقارنة الأسبوع المحدد في نفس الشهر من العناصر الظاهرة في الصفحة
+      const readWeekComparison = () => {
+        let selWeekVal = null;
+        let prevWeekVal = null;
+        let noteText = "";
+
+        try {
+          const cards = Array.prototype.slice.call(document.querySelectorAll("div, section, article"));
+          for (let i = 0; i < cards.length; i++) {
+            const el = cards[i];
+            if (!el || (el.closest && el.closest("#sf2Widget"))) continue;
+            const txt = normDigits(el.innerText || "").trim();
+            if (!txt || txt.length > 450) continue;
+
+            const hasSel = txt.indexOf("الأسبوع المحدد") !== -1 || txt.toLowerCase().indexOf("selected week") !== -1;
+            const hasPrev = txt.indexOf("7 أيام السابقة") !== -1 || txt.indexOf("الأسبوع السابق") !== -1 || txt.toLowerCase().indexOf("previous week") !== -1 || txt.toLowerCase().indexOf("previous 7 days") !== -1;
+
+            if (hasSel || hasPrev) {
+              const nums = (txt.match(/([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)/g) || [])
+                .map((m) => parseNum(m))
+                .filter((n) => n !== null && n >= 0 && n < 10000000);
+
+              if (nums.length >= 2) {
+                selWeekVal = nums[0];
+                prevWeekVal = nums[1];
+                break;
+              } else if (nums.length === 1 && selWeekVal === null) {
+                selWeekVal = nums[0];
+              }
+            }
+          }
+        } catch (_) {}
+
+        // محاولة استخراج نص إضافي من نطاق الأسبوع المحدد في نفس الشهر إن وُجد
+        try {
+          const rangeEl = document.getElementById("filterWeekRange");
+          if (rangeEl) {
+            const rTxt = normDigits(rangeEl.innerText || rangeEl.textContent || "").trim();
+            if (rTxt) noteText = rTxt;
+          }
+        } catch (_) {}
+
+        return {
+          hasData: selWeekVal !== null || prevWeekVal !== null,
+          selWeekVal,
+          prevWeekVal,
+          noteText
+        };
+      };
+
+      // البحث عن أعلى عنصر/فئة صرف خلال الشهر
+      const readTopSpendingItem = () => {
+        try {
+          const candidates = [
+            window.transactions,
+            window.txs,
+            window.records,
+            window.entries,
+            typeof state !== "undefined" ? state && state.transactions : null
+          ];
+          for (let i = 0; i < candidates.length; i++) {
+            const arr = candidates[i];
+            if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === "object") {
+              const now = new Date();
+              const cy = now.getFullYear(), cm = now.getMonth();
+              const sums = {};
+              arr.forEach((it) => {
+                const typeStr = String((it && (it.type || it.kind || it.categoryType)) || "").toLowerCase();
+                const amt = Math.abs(Number(normDigits((it && (it.amount !== undefined ? it.amount : it.value)) || 0).replace(/,/g, "")));
+                if (!isFinite(amt) || amt <= 0) return;
+                if (typeStr.indexOf("deposit") !== -1 || typeStr.indexOf("income") !== -1 || typeStr.indexOf("إيداع") !== -1) return;
+                const rawDate = it && (it.date || it.createdAt || it.timestamp || it.txDate);
+                const d = rawDate ? new Date(rawDate) : now;
+                if (!isNaN(d.getTime()) && d.getFullYear() === cy && d.getMonth() === cm) {
+                  const label = String((it && (it.category || it.note || it.title || it.description)) || (isAr() ? "عام" : "General")).trim();
+                  sums[label] = (sums[label] || 0) + amt;
+                }
+              });
+              const entries = Object.keys(sums).map((k) => ({ name: k, amount: sums[k] })).sort((a, b) => b.amount - a.amount);
+              if (entries.length > 0) return entries[0];
+            }
+          }
+        } catch (_) {}
+
+        try {
+          const nodes = Array.prototype.slice.call(document.querySelectorAll("div, li, tr, section, article"));
+          let best = null;
+          for (let i = 0; i < nodes.length; i++) {
+            const el = nodes[i];
+            if (!el || (el.closest && el.closest("#sf2Widget"))) continue;
+            if (el.children && el.children.length > 5) continue;
+            const raw = normDigits(el.innerText || "").trim();
+            if (!raw || raw.length > 140) continue;
+
+            const matches = raw.match(/([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)\s*(?:SAR|ر\.س)?/gi);
+            if (!matches || matches.length !== 1) continue;
+
+            const amt = parseNum(matches[0]);
+            if (amt === null || amt <= 0 || amt >= 10000000) continue;
+
+            const namePart = raw
+              .replace(matches[0], "")
+              .replace(/SAR|ر\.س/gi, "")
+              .replace(/[:\-–—|•]/g, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            if (!namePart || namePart.length < 2 || namePart.length > 45) continue;
+            if (/الشهر|شهر|السابق|الماضي|الحالي|الأسبوع|اسبوع|إجمالي|اجمالي|مقارنة|تصدير|مساعد|حساب|تسجيل|دخول|خروج/i.test(namePart)) continue;
+
+            if (!best || amt > best.amount) {
+              best = { name: namePart, amount: amt };
+            }
+          }
+          if (best) return best;
+        } catch (_) {}
+
+        return null;
       };
 
       const parseGoal = (q) => {
@@ -2254,26 +2406,146 @@ window.addEventListener("DOMContentLoaded", () => {
         return null;
       };
 
+      const buildTopSpendReply = (ar) => {
+        const top = readTopSpendingItem();
+        if (!top) {
+          return ar
+            ? "لم يتم العثور على تفاصيل عناصر/فئات الصرف الشهرية في الصفحة حالياً."
+            : "Monthly spending item/category details were not found on the page right now.";
+        }
+        return ar
+          ? "📌 أكثر ما تم الصرف فيه خلال الشهر: **" + top.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(top.amount) + "**"
+          : "📌 Highest spending item this month: **" + top.name + "**\n• Amount spent on this item: **" + fmtMoney(top.amount) + "**";
+      };
+
+      const buildMonthComparisonReply = (ar) => {
+        const mom = readMomComparison();
+        if (!mom.hasData) {
+          return ar
+            ? "بيانات مقارنة الشهر الحالي بالشهر السابق غير ظاهرة حالياً؛ تأكد من تسجيل الدخول وتحميل البطاقة الشهرية."
+            : "Current vs. previous month comparison values are not visible yet; sign in and ensure the monthly card is loaded.";
+        }
+
+        const currDisplay = mom.currNum !== null ? fmtMoney(mom.currNum) : mom.currText;
+        const prevDisplay = mom.prevNum !== null ? fmtMoney(mom.prevNum) : mom.prevText;
+
+        let diffLine = "";
+        if (mom.currNum !== null && mom.prevNum !== null) {
+          const diff = mom.currNum - mom.prevNum;
+          if (diff > 0) {
+            diffLine = "\n• الفرق: زيادة **" + fmtMoney(diff) + "**";
+          } else if (diff < 0) {
+            diffLine = "\n• الفرق: انخفاض **" + fmtMoney(Math.abs(diff)) + "**";
+          } else {
+            diffLine = "\n• الفرق: متساوٍ (**" + fmtMoney(0) + "**)";
+          }
+          if (mom.badgeText) {
+            diffLine += " (" + mom.badgeText + ")";
+          }
+        } else if (mom.diffText) {
+          diffLine = "\n• الفرق: **" + mom.diffText + "**";
+        }
+
+        return ar
+          ? "📊 مقارنة مصروفات الشهر الحالي بالشهر السابق:\n• الشهر الحالي: **" + currDisplay + "**\n• الشهر السابق: **" + prevDisplay + "**" + diffLine
+          : "📊 Current vs. Previous Month:\n• Current Month: **" + currDisplay + "**\n• Previous Month: **" + prevDisplay + "**" + diffLine;
+      };
+
+      const buildWeekComparisonReply = (ar) => {
+        const wk = readWeekComparison();
+        if (!wk.hasData) {
+          return ar
+            ? "بيانات مقارنة الأسبوع المحدد في نفس الشهر غير ظاهرة حالياً في الواجهة."
+            : "Selected week comparison values within the current month are not visible right now.";
+        }
+
+        const lines = [];
+        if (wk.selWeekVal !== null) {
+          lines.push(ar ? "• الأسبوع المحدد (نفس الشهر): **" + fmtMoney(wk.selWeekVal) + "**" : "• Selected Week (same month): **" + fmtMoney(wk.selWeekVal) + "**");
+        }
+        if (wk.prevWeekVal !== null) {
+          lines.push(ar ? "• الفترة السابقة المقارنة: **" + fmtMoney(wk.prevWeekVal) + "**" : "• Previous Comparison Period: **" + fmtMoney(wk.prevWeekVal) + "**");
+        }
+        if (wk.selWeekVal !== null && wk.prevWeekVal !== null) {
+          const diff = wk.selWeekVal - wk.prevWeekVal;
+          if (diff > 0) {
+            lines.push(ar ? "• الفرق: زيادة **" + fmtMoney(diff) + "**" : "• Difference: +**" + fmtMoney(diff) + "**");
+          } else if (diff < 0) {
+            lines.push(ar ? "• الفرق: انخفاض **" + fmtMoney(Math.abs(diff)) + "**" : "• Difference: -**" + fmtMoney(Math.abs(diff)) + "**");
+          } else {
+            lines.push(ar ? "• الفرق: متساوٍ (**" + fmtMoney(0) + "**)" : "• Difference: equal (**" + fmtMoney(0) + "**)");
+          }
+        }
+        if (wk.noteText) {
+          lines.push(ar ? "• النطاق: " + wk.noteText : "• Range: " + wk.noteText);
+        }
+
+        return (ar ? "📅 مقارنة الأسبوع المحدد في نفس الشهر:\n" : "📅 Selected Week Comparison (Same Month):\n") + lines.join("\n");
+      };
+
       const reply = (rawQ) => {
         const q = normDigits(String(rawQ || "").trim().toLowerCase());
         const ar = isAr();
+
+        // سؤال عن أكثر ما صُرف فيه خلال الشهر ومقداره
+        if (
+          q.indexOf("صرفت اكثر") !== -1 ||
+          q.indexOf("أكثر شي") !== -1 ||
+          q.indexOf("اكثر شي") !== -1 ||
+          q.indexOf("أكثر شيء") !== -1 ||
+          q.indexOf("اكثر شيء") !== -1 ||
+          q.indexOf("أكثر مصاريف") !== -1 ||
+          q.indexOf("اكثر مصاريف") !== -1 ||
+          q.indexOf("عنصر") !== -1 ||
+          q.indexOf("فئة") !== -1 ||
+          q.indexOf("top") !== -1
+        ) {
+          return buildTopSpendReply(ar);
+        }
+
+        // سؤال عن مقارنة الأسبوع المحدد في نفس الشهر
+        if (
+          q.indexOf("الأسبوع المحدد") !== -1 ||
+          q.indexOf("الاسبوع المحدد") !== -1 ||
+          (q.indexOf("أسبوع") !== -1 && (q.indexOf("مقارن") !== -1 || q.indexOf("شهر") !== -1 || q.indexOf("محدد") !== -1)) ||
+          (q.indexOf("اسبوع") !== -1 && (q.indexOf("مقارن") !== -1 || q.indexOf("شهر") !== -1 || q.indexOf("محدد") !== -1)) ||
+          q.indexOf("selected week") !== -1 ||
+          q.indexOf("week comparison") !== -1
+        ) {
+          return buildWeekComparisonReply(ar);
+        }
+
+        // سؤال عن مقارنة الشهر الحالي بالشهر السابق
+        if (
+          q.indexOf("مقارن") !== -1 ||
+          q.indexOf("الشهر السابق") !== -1 ||
+          q.indexOf("الشهر الماضي") !== -1 ||
+          q.indexOf("شهر بشهر") !== -1 ||
+          q.indexOf("compare") !== -1 ||
+          q.indexOf("previous month") !== -1 ||
+          q.indexOf("last month") !== -1
+        ) {
+          return buildMonthComparisonReply(ar);
+        }
+
+        // سؤال عن الأهداف والفترات من شهر إلى 5 سنوات
         const goalVal = parseGoal(q);
         const monthsVal = parseMonths(q);
 
         if (goalVal || monthsVal || q.indexOf("فترات") !== -1 || q.indexOf("مدة") !== -1 || q.indexOf("سنوات") !== -1 || q.indexOf("شهور") !== -1) {
           if (!goalVal) {
-            const mNote = monthsVal ? " (المدة المحددة: **" + monthsVal + " شهر**)" : "";
+            const mNote = monthsVal ? " (المدة: **" + monthsVal + " شهر**)" : "";
             return ar
-              ? "تحت أمرك يا جواد" + mNote + "، اكتب المبلغ المطلوب معه؛ مثلاً: «هدف ٢٠٠ ألف لمدة سنتين»."
-              : "At your service Jawad, include the target amount, e.g. «goal 200000 in 2 years».";
+              ? "يرجى تحديد المبلغ المطلوب" + mNote + "؛ مثال: «هدف ٢٠٠ ألف لمدة سنتين»."
+              : "Please enter a target amount, e.g. «goal 200000 in 2 years».";
           }
 
           if (monthsVal && monthsVal > 0) {
             const perMonth = goalVal / monthsVal;
             const perWeek = perMonth / 4.33;
             return ar
-              ? "حاضر يا جواد 🎯 لهدف **" + fmtMoney(goalVal) + "** خلال **" + monthsVal + " شهر**:\n• المطلوب ادخاره شهرياً: **" + fmtMoney(perMonth) + "**\n• أو أسبوعياً تقريباً: **" + fmtMoney(perWeek) + "**"
-              : "Right away Jawad 🎯 For **" + fmtMoney(goalVal) + "** in **" + monthsVal + " months**:\n• Monthly: **" + fmtMoney(perMonth) + "**\n• Weekly: **" + fmtMoney(perWeek) + "**";
+              ? "🎯 لهدف **" + fmtMoney(goalVal) + "** خلال **" + monthsVal + " شهر**:\n• المطلوب شهرياً: **" + fmtMoney(perMonth) + "**\n• أسبوعياً تقريباً: **" + fmtMoney(perWeek) + "**"
+              : "🎯 For **" + fmtMoney(goalVal) + "** in **" + monthsVal + " months**:\n• Monthly: **" + fmtMoney(perMonth) + "**\n• Weekly: **" + fmtMoney(perWeek) + "**";
           }
 
           const periods = [
@@ -2292,13 +2564,13 @@ window.addEventListener("DOMContentLoaded", () => {
           });
 
           return ar
-            ? "أبشر يا جواد 🎯 حسبت لك هدف **" + fmtMoney(goalVal) + "** على فترات مختلفة:\n" + listLines.join("\n")
-            : "Here you go Jawad 🎯 Target **" + fmtMoney(goalVal) + "** across periods:\n" + listLines.join("\n");
+            ? "🎯 توزيع هدف **" + fmtMoney(goalVal) + "** على فترات مختلفة:\n" + listLines.join("\n")
+            : "🎯 Target **" + fmtMoney(goalVal) + "** across periods:\n" + listLines.join("\n");
         }
 
         return ar
-          ? "أهلاً يا جواد، سجل المعاملات التفصيلية غير مكشوف برمجياً في الصفحة، لكن أقدر أحسب لك أي هدف ومدة من شهر إلى ٥ سنوات؛ جرّب: «هدف ٢٠٠ ألف لمدة سنتين»."
-          : "Hello Jawad, detailed transactions aren't exposed programmatically on the page, but I can calculate any goal from 1 month to 5 years, e.g. «goal 200000 in 2 years».";
+          ? "يمكنك السؤال عن:\n• «مقارنة الأسبوع المحدد نفس الشهر»\n• «مقارنة الشهر الحالي بالسابق»\n• «وش صرفت أكثر شي خلال الشهر»\n• أو تحديد هدف ومدة مثل: «هدف ٢٠٠ ألف لمدة سنتين»."
+          : "You can ask about:\n• «Selected week comparison (same month)»\n• «Compare current vs previous month»\n• «Highest spending item this month»\n• Or a goal & duration like «goal 200000 in 2 years».";
       };
 
       const addMsg = (txt, isUser) => {
@@ -2332,13 +2604,13 @@ window.addEventListener("DOMContentLoaded", () => {
         const chp = document.getElementById("sf2QuickChips");
 
         if (lbl) lbl.textContent = ar ? "المساعد المالي" : "AI Advisor";
-        if (ttl) ttl.textContent = ar ? "🤖 مساعد جواد المالي" : "🤖 Jawad's Financial Assistant";
-        if (inp) inp.placeholder = ar ? "يا جواد، اكتب هدفك والمدة (مثال: هدف ٢٠٠ ألف لمدة سنتين)..." : "Jawad, enter goal & period...";
+        if (ttl) ttl.textContent = ar ? "🤖 المساعد المالي الذكي" : "🤖 Smart Financial Advisor";
+        if (inp) inp.placeholder = ar ? "اسأل عن الأسبوع، الشهر، أكثر صرف، أو هدف..." : "Ask week, month, top spend, or goal...";
         if (snd) snd.textContent = ar ? "إرسال" : "Send";
 
         const chips = ar
-          ? ["هدف ١٠٠ ألف لمدة ٦ شهور", "هدف ٢٠٠ ألف لمدة سنتين", "هدف ٥٠٠ ألف لمدة ٣ سنوات", "هدف مليون لمدة ٥ سنوات"]
-          : ["Goal 100k in 6 months", "Goal 200k in 2 years", "Goal 500k in 3 years", "Goal 1000k in 5 years"];
+          ? ["مقارنة الأسبوع المحدد نفس الشهر", "مقارنة الشهر الحالي بالسابق", "وش صرفت أكثر شي خلال الشهر", "هدف ٢٠٠ ألف لمدة سنتين"]
+          : ["Selected week (same month)", "Compare months", "Top spend this month", "Goal 200k in 2 years"];
 
         if (chp) {
           chp.innerHTML = "";
@@ -2356,8 +2628,8 @@ window.addEventListener("DOMContentLoaded", () => {
       renderUi();
       addMsg(
         isAr()
-          ? "أهلاً بك يا جواد، أنا جاهز أخدمك. حدد أي هدف ومدة من شهر إلى ٥ سنوات مثل: «هدف ٢٠٠ ألف لمدة سنتين»."
-          : "Welcome Jawad, ready to assist. Enter any goal from 1 month to 5 years, e.g. «goal 200000 in 2 years».",
+          ? "جاهز. يمكنك طلب مقارنة الأسبوع المحدد في نفس الشهر، مقارنة الشهر الحالي بالسابق، معرفة أكثر عنصر صرفت فيه خلال الشهر ومقداره، أو حساب هدف ومدة من شهر إلى ٥ سنوات."
+          : "Ready. Ask for selected week comparison in the same month, month-over-month comparison, highest spending item this month, or goal calculations.",
         false
       );
 
