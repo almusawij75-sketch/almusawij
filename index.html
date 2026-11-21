@@ -2171,7 +2171,7 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => window.updateResetDepositButtonsLang(), 300);
 });
 </script>
-  <!-- Smart Financial Assistant Widget v14 -->
+  <!-- Smart Financial Assistant Widget v15 -->
 <div id="sf2Widget" style="position:fixed;bottom:20px;left:20px;z-index:9999;font-family:inherit;">
   <button id="sf2ToggleBtn" type="button"
     style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:999px;border:none;background:#c2410c;color:#fff;font-weight:700;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,0.18);cursor:pointer;">
@@ -2276,6 +2276,69 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
+      // قراءة أعلى فئة ومجموع صرفها من جدول المعاملات الظاهر حالياً في الصفحة
+      const readVisibleTableTopCategory = () => {
+        try {
+          const tbody = document.getElementById("expensesTableBody");
+          if (!tbody) return null;
+          const rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+          if (!rows.length) return null;
+
+          const knownCats = [
+            "Past Due", "Utilites", "Utilities", "SIM Bill", "Groceries",
+            "Tabby & Tamara", "Car Fuel", "Restaurant", "Car Wash",
+            "Break Groceries", "Other", "Hospital Fees", "Online Purchase"
+          ];
+
+          const totals = {};
+          rows.forEach((tr) => {
+            const rawTxt = normDigits(tr.innerText || "").trim();
+            if (!rawTxt) return;
+
+            // استخراج المبلغ من النص (نبحث عن رقم عشري أو رقم بفواصل مثل 407.00 أو 1,511.00)
+            const cleanedForNums = rawTxt
+              .replace(/\b(edit|delete|تعديل|حذف)\b/gi, " ")
+              .replace(/\b(20\d{2}[-/]\d{1,2}[-/]\d{1,2})\b/g, " ");
+
+            const numMatches = cleanedForNums.match(/([0-9]{1,3}(?:,[0-9]{3})*\.[0-9]{1,2}|[0-9]+(?:\.[0-9]{1,2})?)/g) || [];
+            const nums = numMatches.map((m) => parseNum(m)).filter((n) => n !== null && n > 0 && n < 10000000);
+            if (!nums.length) return;
+
+            const amt = nums[0];
+
+            // استخراج اسم الفئة من عناصر الصف أو المطابقة مع الفئات المعروفة
+            let catName = "";
+            const cells = Array.prototype.slice.call(tr.querySelectorAll("td, span, button, div"));
+            for (let c = 0; c < cells.length; c++) {
+              const cTxt = normDigits(cells[c].innerText || "").trim();
+              if (!cTxt || cTxt.length > 35) continue;
+              if (/^(edit|delete|تعديل|حذف|—|-|\+|SAR|ر\.س)$/i.test(cTxt)) continue;
+              const matchedKnown = knownCats.find((kc) => cTxt.toLowerCase() === kc.toLowerCase());
+              if (matchedKnown) {
+                catName = matchedKnown;
+                break;
+              }
+            }
+
+            if (!catName) {
+              const matchedKnownInRow = knownCats.find((kc) => rawTxt.toLowerCase().indexOf(kc.toLowerCase()) !== -1);
+              if (matchedKnownInRow) catName = matchedKnownInRow;
+            }
+
+            if (!catName) return;
+            totals[catName] = (totals[catName] || 0) + amt;
+          });
+
+          const list = Object.keys(totals)
+            .map((k) => ({ name: k, amount: totals[k] }))
+            .sort((a, b) => b.amount - a.amount);
+
+          return list.length > 0 ? list[0] : null;
+        } catch (_) {
+          return null;
+        }
+      };
+
       const readCategoryChartTop = () => {
         try {
           const canvas = document.getElementById("categoryChart");
@@ -2355,21 +2418,34 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const buildWeekTopSpendReply = (ar) => {
+        const tableTop = readVisibleTableTopCategory();
+        if (tableTop) {
+          return ar
+            ? "📅 أكثر ما تم الصرف فيه حسب جدول المعاملات المعروض حالياً: **" + tableTop.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(tableTop.amount) + "**"
+            : "📅 Highest spending item in the visible transactions table: **" + tableTop.name + "**\n• Amount spent on this item: **" + fmtMoney(tableTop.amount) + "**";
+        }
+
         const wk = readWeekComparison();
         if (wk.hasData && wk.currNum !== null) {
           return ar
-            ? "📅 تفصيل الفئات في الصفحة متاح للشهر المحدد فقط؛ وإجمالي الصرف للأسبوع المحدد هو: **" + fmtMoney(wk.currNum) + "**."
-            : "📅 Category breakdown on the page is shown for the selected month only; selected week total is **" + fmtMoney(wk.currNum) + "**.";
+            ? "📅 اختر «نطاق الأسبوع المحدد» في جدول المعاملات لعرض الفئات الأسبوعية؛ وإجمالي الأسبوع المحدد حالياً هو: **" + fmtMoney(wk.currNum) + "**."
+            : "📅 Select «Selected Week Range» in the transactions table to inspect weekly items; selected week total is **" + fmtMoney(wk.currNum) + "** (SAR).";
         }
         return ar
-          ? "لا توجد تفاصيل مستقلة لعناصر/فئات الصرف خلال الأسبوع في الصفحة حالياً؛ المتاح من الفئات هو للشهر المحدد فقط."
-          : "No separate weekly category breakdown is available on the page right now; category breakdown is only shown for the selected month.";
+          ? "لا توجد بيانات أسبوعية ظاهرة في جدول المعاملات حالياً."
+          : "No weekly rows are visible in the transactions table right now.";
       };
 
       const buildDayTopSpendReply = (ar) => {
+        const tableTop = readVisibleTableTopCategory();
+        if (tableTop) {
+          return ar
+            ? "🕒 أكثر عنصر صرف في الجدول المعروض حالياً: **" + tableTop.name + "**\n• مقدار الصرف في هذا العنصر: **" + fmtMoney(tableTop.amount) + "**"
+            : "🕒 Top item in the currently visible table: **" + tableTop.name + "**\n• Amount spent on this item: **" + fmtMoney(tableTop.amount) + "**";
+        }
         return ar
-          ? "🕒 لا توجد تفاصيل مستقلة لعناصر/فئات الصرف خلال اليوم في الصفحة حالياً؛ المتاح من الفئات هو للشهر المحدد فقط."
-          : "🕒 No separate daily category breakdown is available on the page right now; category breakdown is only shown for the selected month.";
+          ? "🕒 لا توجد بيانات تفصيلية لليوم ظاهرة في جدول المعاملات حالياً."
+          : "🕒 No daily transaction details are visible in the table right now.";
       };
 
       const buildMonthComparisonReply = (ar) => {
@@ -2573,8 +2649,8 @@ window.addEventListener("DOMContentLoaded", () => {
       renderUi();
       addMsg(
         isAr()
-          ? "جاهز. يمكنك طلب مقارنة هذا الأسبوع مع الأسبوع السابق، أو هذا الشهر مع الشهر السابق، أو معرفة أكثر فئة صرف خلال الشهر، أو حساب هدف ومدة من شهر إلى ٥ سنوات."
-          : "Ready. Ask to compare this week with the previous week, this month with the previous month, top spending category this month, or goal plans.",
+          ? "جاهز. يمكنك طلب مقارنة هذا الأسبوع مع الأسبوع السابق، أو هذا الشهر مع الشهر السابق، أو معرفة أكثر فئة صرف خلال الشهر أو الأسبوع، أو حساب هدف ومدة من شهر إلى ٥ سنوات."
+          : "Ready. Ask to compare this week with the previous week, this month with the previous month, top spending category, or goal plans.",
         false
       );
 
