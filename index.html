@@ -3669,10 +3669,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Edit Total Top-ups Icon Button v4 (Updates Current Wallet Balance Accurately + Bilingual AR/EN) -->
+  <!-- Edit Total Top-ups Icon Button v5.1 (Direct Formula: Top-ups - Expenses - Savings -> Current Wallet) -->
 <script>
 (function () {
-  function initEditTotalTopupsIconV4() {
+  function initEditTotalTopupsBoxV5_1() {
     try {
       const BTN_ID = "sf2EditTotalTopupsBtn";
       const MODAL_ID = "sf2EditTotalTopupsModal";
@@ -3704,78 +3704,77 @@ window.addEventListener("DOMContentLoaded", () => {
         })} SAR`;
       };
 
+      const getExpensesDeductedValue = () => {
+        const expEl = document.getElementById("walletTotalExpenses");
+        if (expEl && expEl.textContent && expEl.textContent.trim()) {
+          return Math.abs(parseNumericFromText(expEl.textContent));
+        }
+        return 0;
+      };
+
+      const getSavingsTransferredValue = () => {
+        const savEl = document.getElementById("walletTotalSavings");
+        if (savEl && savEl.textContent && savEl.textContent.trim()) {
+          return Math.abs(parseNumericFromText(savEl.textContent));
+        }
+        return 0;
+      };
+
       const getCurrentTopupsValue = () => {
+        try {
+          if (
+            typeof state !== "undefined" &&
+            state &&
+            typeof state._sf2CustomTotalTopups === "number" &&
+            Number.isFinite(state._sf2CustomTotalTopups)
+          ) {
+            return state._sf2CustomTotalTopups;
+          }
+        } catch (_) {}
         const el = document.getElementById("walletTotalAdded");
         if (el && el.textContent && el.textContent.trim()) {
           return parseNumericFromText(el.textContent);
         }
-        try {
-          if (typeof state !== "undefined" && state) {
-            if (typeof state.totalTopups === "number" && Number.isFinite(state.totalTopups)) {
-              return state.totalTopups;
-            }
-            if (typeof state.addedTotal === "number" && Number.isFinite(state.addedTotal)) {
-              return state.addedTotal;
-            }
-          }
-        } catch (_) {}
         return 0;
       };
 
-      const getCurrentWalletDisplayedValue = () => {
-        const balEl = document.getElementById("walletSummaryBalance");
-        if (balEl && balEl.textContent && balEl.textContent.trim()) {
-          return parseNumericFromText(balEl.textContent);
-        }
-        try {
-          if (typeof state !== "undefined" && state && typeof state.walletBalance === "number") {
-            return state.walletBalance;
-          }
-        } catch (_) {}
-        return 0;
-      };
-
-      const syncDisplayedValues = (topupsVal, walletVal) => {
+      const recomputeAndSyncBox = (overrideTopupsVal) => {
         const totalEl = document.getElementById("walletTotalAdded");
         const balEl = document.getElementById("walletSummaryBalance");
 
-        if (totalEl && Number.isFinite(topupsVal)) {
+        const topupsVal =
+          typeof overrideTopupsVal === "number" && Number.isFinite(overrideTopupsVal)
+            ? overrideTopupsVal
+            : getCurrentTopupsValue();
+
+        const expensesVal = getExpensesDeductedValue();
+        const savingsVal = getSavingsTransferredValue();
+        const currentWalletVal = Number((topupsVal - expensesVal - savingsVal).toFixed(2));
+
+        if (totalEl) {
           totalEl.textContent = formatCurrencyAmount(topupsVal);
         }
-        if (balEl && Number.isFinite(walletVal)) {
-          balEl.textContent = formatCurrencyAmount(walletVal);
+        if (balEl) {
+          balEl.textContent = formatCurrencyAmount(currentWalletVal);
         }
+
+        try {
+          if (typeof state !== "undefined" && state) {
+            state._sf2CustomTotalTopups = topupsVal;
+            if ("totalTopups" in state) state.totalTopups = topupsVal;
+            if ("addedTotal" in state) state.addedTotal = topupsVal;
+            state.walletBalance = currentWalletVal;
+          }
+        } catch (_) {}
+
+        mountOrUpdateIconButton();
       };
 
       const applyNewTopupsValue = (newVal) => {
         const numericVal = Number(newVal);
         if (!Number.isFinite(numericVal) || numericVal < 0) return;
 
-        const prevTopupsVal = getCurrentTopupsValue();
-        const prevWalletVal = getCurrentWalletDisplayedValue();
-        const diff = numericVal - prevTopupsVal;
-        const nextWalletVal = Math.max(0, Number((prevWalletVal + diff).toFixed(2)));
-
-        try {
-          if (typeof state !== "undefined" && state) {
-            if ("totalTopups" in state) state.totalTopups = numericVal;
-            if ("addedTotal" in state) state.addedTotal = numericVal;
-            state.walletBalance = nextWalletVal;
-
-            if (Array.isArray(state.walletHistory) && Math.abs(diff) > 0.0001) {
-              const lang = getLang();
-              state.walletHistory.unshift({
-                id: "sf2-topup-edit-" + Date.now(),
-                type: "topup-edit",
-                amount: diff,
-                note: lang === "en" ? "Edited Total Top-ups" : "تعديل إجمالي الإيداعات",
-                date: new Date().toISOString().slice(0, 10)
-              });
-            }
-          }
-        } catch (_) {}
-
-        syncDisplayedValues(numericVal, nextWalletVal);
+        recomputeAndSyncBox(numericVal);
 
         try {
           if (typeof persistState === "function") persistState();
@@ -3783,13 +3782,9 @@ window.addEventListener("DOMContentLoaded", () => {
           else if (typeof renderWalletTab === "function") renderWalletTab();
         } catch (_) {}
 
-        syncDisplayedValues(numericVal, nextWalletVal);
-        mountOrUpdateIconButton();
-
-        setTimeout(() => {
-          syncDisplayedValues(numericVal, nextWalletVal);
-          mountOrUpdateIconButton();
-        }, 120);
+        recomputeAndSyncBox(numericVal);
+        setTimeout(() => recomputeAndSyncBox(numericVal), 120);
+        setTimeout(() => recomputeAndSyncBox(numericVal), 350);
       };
 
       const ensureModal = () => {
@@ -3928,19 +3923,19 @@ window.addEventListener("DOMContentLoaded", () => {
       const langBtn = document.getElementById("langToggleBtn");
       if (langBtn) {
         langBtn.addEventListener("click", () => {
-          setTimeout(mountOrUpdateIconButton, 80);
-          setTimeout(mountOrUpdateIconButton, 300);
+          setTimeout(() => recomputeAndSyncBox(), 90);
+          setTimeout(() => recomputeAndSyncBox(), 320);
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Edit total top-ups icon v4 guard:", err);
+      if (window.console && console.warn) console.warn("Edit total top-ups box v5.1 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initEditTotalTopupsIconV4);
+    document.addEventListener("DOMContentLoaded", initEditTotalTopupsBoxV5_1);
   } else {
-    initEditTotalTopupsIconV4();
+    initEditTotalTopupsBoxV5_1();
   }
 })();
 </script>
