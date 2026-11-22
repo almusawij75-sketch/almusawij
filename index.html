@@ -3669,13 +3669,14 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Edit Total Top-ups Icon Button v5.1 (Direct Formula: Top-ups - Expenses - Savings -> Current Wallet) -->
+  <!-- Edit Total Top-ups Icon Button v6 (Always-Synced Formula: Top-ups - Expenses - Savings -> Current Wallet) -->
 <script>
 (function () {
-  function initEditTotalTopupsBoxV5_1() {
+  function initEditTotalTopupsBoxV6() {
     try {
       const BTN_ID = "sf2EditTotalTopupsBtn";
       const MODAL_ID = "sf2EditTotalTopupsModal";
+      let isSyncing = false;
 
       const getLang = () => {
         try {
@@ -3739,51 +3740,66 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const recomputeAndSyncBox = (overrideTopupsVal) => {
-        const totalEl = document.getElementById("walletTotalAdded");
-        const balEl = document.getElementById("walletSummaryBalance");
-
-        const topupsVal =
-          typeof overrideTopupsVal === "number" && Number.isFinite(overrideTopupsVal)
-            ? overrideTopupsVal
-            : getCurrentTopupsValue();
-
-        const expensesVal = getExpensesDeductedValue();
-        const savingsVal = getSavingsTransferredValue();
-        const currentWalletVal = Number((topupsVal - expensesVal - savingsVal).toFixed(2));
-
-        if (totalEl) {
-          totalEl.textContent = formatCurrencyAmount(topupsVal);
-        }
-        if (balEl) {
-          balEl.textContent = formatCurrencyAmount(currentWalletVal);
-        }
-
+        if (isSyncing) return;
+        isSyncing = true;
         try {
-          if (typeof state !== "undefined" && state) {
-            state._sf2CustomTotalTopups = topupsVal;
-            if ("totalTopups" in state) state.totalTopups = topupsVal;
-            if ("addedTotal" in state) state.addedTotal = topupsVal;
-            state.walletBalance = currentWalletVal;
-          }
-        } catch (_) {}
+          const totalEl = document.getElementById("walletTotalAdded");
+          const balEl = document.getElementById("walletSummaryBalance");
+          if (!totalEl && !balEl) return;
 
-        mountOrUpdateIconButton();
+          const topupsVal =
+            typeof overrideTopupsVal === "number" && Number.isFinite(overrideTopupsVal)
+              ? overrideTopupsVal
+              : getCurrentTopupsValue();
+
+          const expensesVal = getExpensesDeductedValue();
+          const savingsVal = getSavingsTransferredValue();
+          const currentWalletVal = Number((topupsVal - expensesVal - savingsVal).toFixed(2));
+
+          const formattedTopups = formatCurrencyAmount(topupsVal);
+          const formattedWallet = formatCurrencyAmount(currentWalletVal);
+
+          if (totalEl && totalEl.textContent !== formattedTopups) {
+            totalEl.textContent = formattedTopups;
+          }
+          if (balEl && balEl.textContent !== formattedWallet) {
+            balEl.textContent = formattedWallet;
+          }
+
+          try {
+            if (typeof state !== "undefined" && state) {
+              state._sf2CustomTotalTopups = topupsVal;
+              if ("totalTopups" in state) state.totalTopups = topupsVal;
+              if ("addedTotal" in state) state.addedTotal = topupsVal;
+              state.walletBalance = currentWalletVal;
+            }
+          } catch (_) {}
+
+          mountOrUpdateIconButton();
+        } finally {
+          setTimeout(() => {
+            isSyncing = false;
+          }, 0);
+        }
       };
 
       const applyNewTopupsValue = (newVal) => {
         const numericVal = Number(newVal);
         if (!Number.isFinite(numericVal) || numericVal < 0) return;
 
+        try {
+          if (typeof state !== "undefined" && state) {
+            state._sf2CustomTotalTopups = numericVal;
+          }
+        } catch (_) {}
+
         recomputeAndSyncBox(numericVal);
 
         try {
           if (typeof persistState === "function") persistState();
-          if (typeof renderAll === "function") renderAll();
-          else if (typeof renderWalletTab === "function") renderWalletTab();
         } catch (_) {}
 
-        recomputeAndSyncBox(numericVal);
-        setTimeout(() => recomputeAndSyncBox(numericVal), 120);
+        setTimeout(() => recomputeAndSyncBox(numericVal), 100);
         setTimeout(() => recomputeAndSyncBox(numericVal), 350);
       };
 
@@ -3916,9 +3932,33 @@ window.addEventListener("DOMContentLoaded", () => {
         btn.setAttribute("title", accessibleLabel);
       };
 
-      mountOrUpdateIconButton();
-      setTimeout(mountOrUpdateIconButton, 250);
-      setTimeout(mountOrUpdateIconButton, 800);
+      const observeBoxChanges = () => {
+        if (typeof MutationObserver === "undefined") return;
+        const targets = ["walletTotalAdded", "walletTotalExpenses", "walletTotalSavings", "walletSummaryBalance"]
+          .map((id) => document.getElementById(id))
+          .filter(Boolean);
+
+        const observer = new MutationObserver(() => {
+          if (!isSyncing) {
+            setTimeout(() => recomputeAndSyncBox(), 20);
+          }
+        });
+
+        targets.forEach((el) => {
+          observer.observe(el, { characterData: true, childList: true, subtree: true });
+        });
+      };
+
+      recomputeAndSyncBox();
+      observeBoxChanges();
+      setTimeout(() => {
+        recomputeAndSyncBox();
+        observeBoxChanges();
+      }, 300);
+      setTimeout(() => {
+        recomputeAndSyncBox();
+        observeBoxChanges();
+      }, 900);
 
       const langBtn = document.getElementById("langToggleBtn");
       if (langBtn) {
@@ -3928,14 +3968,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Edit total top-ups box v5.1 guard:", err);
+      if (window.console && console.warn) console.warn("Edit total top-ups box v6 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initEditTotalTopupsBoxV5_1);
+    document.addEventListener("DOMContentLoaded", initEditTotalTopupsBoxV6);
   } else {
-    initEditTotalTopupsBoxV5_1();
+    initEditTotalTopupsBoxV6();
   }
 })();
 </script>
