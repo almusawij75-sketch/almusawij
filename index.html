@@ -3669,10 +3669,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Edit Total Top-ups Button v2 (Harmonized Theme Style + Bilingual AR/EN) -->
+  <!-- Edit Total Top-ups Icon Button v3 (Small Pencil Icon + Aligned Value + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initEditTotalTopupsBtnV2() {
+  function initEditTotalTopupsIconV3() {
     try {
       const BTN_ID = "sf2EditTotalTopupsBtn";
       const MODAL_ID = "sf2EditTotalTopupsModal";
@@ -3752,7 +3752,7 @@ window.addEventListener("DOMContentLoaded", () => {
           else if (typeof renderWalletTab === "function") renderWalletTab();
         } catch (_) {}
 
-        mountOrUpdateButton();
+        mountOrUpdateIconButton();
       };
 
       const ensureModal = () => {
@@ -3829,12 +3829,27 @@ window.addEventListener("DOMContentLoaded", () => {
         }, 60);
       };
 
-      const mountOrUpdateButton = () => {
+      const mountOrUpdateIconButton = () => {
         const totalEl = document.getElementById("walletTotalAdded");
         if (!totalEl || !totalEl.parentElement) return;
 
+        const rowEl = totalEl.parentElement;
+        rowEl.style.display = "flex";
+        rowEl.style.alignItems = "center";
+        rowEl.style.justifyContent = "space-between";
+        rowEl.style.gap = "8px";
+
+        let valueWrap = document.getElementById("sf2TopupValueWrap");
+        if (!valueWrap) {
+          valueWrap = document.createElement("span");
+          valueWrap.id = "sf2TopupValueWrap";
+          valueWrap.style.cssText = "display:inline-flex;align-items:center;gap:6px;margin-inline-start:auto;";
+          totalEl.parentNode.insertBefore(valueWrap, totalEl);
+          valueWrap.appendChild(totalEl);
+        }
+
         const lang = getLang();
-        const btnLabel = lang === "en" ? "Edit" : "تعديل";
+        const accessibleLabel = lang === "en" ? "Edit Total Top-ups" : "تعديل إجمالي الإيداعات";
 
         let btn = document.getElementById(BTN_ID);
         if (!btn) {
@@ -3842,7 +3857,13 @@ window.addEventListener("DOMContentLoaded", () => {
           btn.id = BTN_ID;
           btn.type = "button";
           btn.style.cssText =
-            "margin-inline-start:8px;padding:3px 9px;border-radius:10px;border:1px solid var(--border-color,#e5cfc0);background:var(--bg-card,#fffdfb);color:var(--text-secondary,#6b584e);font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;vertical-align:middle;transition:all 0.15s ease;";
+            "display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border-radius:7px;border:1px solid var(--border-color,#e5cfc0);background:var(--bg-card,#fffdfb);color:var(--text-secondary,#6b584e);cursor:pointer;flex-shrink:0;transition:all 0.15s ease;";
+          btn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          `;
           btn.addEventListener("mouseenter", () => {
             btn.style.borderColor = "var(--accent,#c2410c)";
             btn.style.color = "var(--accent,#c2410c)";
@@ -3856,33 +3877,33 @@ window.addEventListener("DOMContentLoaded", () => {
             e.stopPropagation();
             openEditModal();
           });
-          totalEl.insertAdjacentElement("afterend", btn);
+          valueWrap.insertBefore(btn, totalEl);
         }
 
-        btn.textContent = btnLabel;
-        btn.setAttribute("aria-label", lang === "en" ? "Edit Total Top-ups" : "تعديل إجمالي الإيداعات");
+        btn.setAttribute("aria-label", accessibleLabel);
+        btn.setAttribute("title", accessibleLabel);
       };
 
-      mountOrUpdateButton();
-      setTimeout(mountOrUpdateButton, 250);
-      setTimeout(mountOrUpdateButton, 800);
+      mountOrUpdateIconButton();
+      setTimeout(mountOrUpdateIconButton, 250);
+      setTimeout(mountOrUpdateIconButton, 800);
 
       const langBtn = document.getElementById("langToggleBtn");
       if (langBtn) {
         langBtn.addEventListener("click", () => {
-          setTimeout(mountOrUpdateButton, 80);
-          setTimeout(mountOrUpdateButton, 300);
+          setTimeout(mountOrUpdateIconButton, 80);
+          setTimeout(mountOrUpdateIconButton, 300);
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Edit total top-ups button v2 guard:", err);
+      if (window.console && console.warn) console.warn("Edit total top-ups icon v3 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initEditTotalTopupsBtnV2);
+    document.addEventListener("DOMContentLoaded", initEditTotalTopupsIconV3);
   } else {
-    initEditTotalTopupsBtnV2();
+    initEditTotalTopupsIconV3();
   }
 })();
 </script>
