@@ -3984,10 +3984,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Reset Entire Account Button v3 (Complete Clean Reset + Bilingual AR/EN + Safe Auth/Sync) -->
+  <!-- Reset Entire Account Button v4 (Full State + Lists + Cloud Sync + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initResetEntireAccountBtnV3() {
+  function initResetEntireAccountBtnV4() {
     try {
       const BTN_ID = "sf2ResetEntireAccountBtn";
       const MODAL_ID = "sf2ResetEntireAccountModal";
@@ -4020,24 +4020,84 @@ window.addEventListener("DOMContentLoaded", () => {
         return null;
       };
 
-      const forceZeroDomSummary = () => {
+      const clearVisibleListsAndBalances = () => {
         const zeroText = "0.00 SAR";
-        ["walletTotalAdded", "walletTotalExpenses", "walletTotalSavings", "walletSummaryBalance"].forEach((id) => {
+        [
+          "walletTotalAdded",
+          "walletTotalExpenses",
+          "walletTotalSavings",
+          "walletSummaryBalance",
+          "currentWalletBalance",
+          "walletBalanceText",
+          "savingsTotalBalance",
+          "loansTotalBalance"
+        ].forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.textContent = zeroText;
         });
 
-        const balanceIds = ["currentWalletBalance", "walletBalanceText", "savingsTotalBalance", "loansTotalBalance"];
-        balanceIds.forEach((id) => {
+        // تفريغ حاويات سجل الحركات والمصروفات والمدخرات والقروض إن وُجدت
+        const listIds = [
+          "walletHistoryList",
+          "recentWalletActivity",
+          "walletActivityList",
+          "expensesList",
+          "savingsList",
+          "loansList"
+        ];
+        listIds.forEach((id) => {
           const el = document.getElementById(id);
-          if (el) el.textContent = zeroText;
+          if (el) el.innerHTML = "";
         });
+
+        // تفريغ أي قوائم حركات داخل تبويب المحفظة بعد عنوان "أحدث حركات المحفظة"
+        try {
+          const walletTab = document.getElementById("tab-wallet");
+          if (walletTab) {
+            const headings = Array.from(walletTab.querySelectorAll("h1, h2, h3, h4, div, p, span"));
+            const recentHeading = headings.find((n) => {
+              const t = (n.textContent || "").trim();
+              return t === "أحدث حركات المحفظة" || t === "Recent Wallet Activity";
+            });
+            if (recentHeading && recentHeading.parentElement) {
+              const parent = recentHeading.parentElement;
+              const children = Array.from(parent.children);
+              const idx = children.indexOf(recentHeading);
+              if (idx !== -1) {
+                children.slice(idx + 1).forEach((ch) => {
+                  if (ch && ch.id !== "sf2ResetBtnWrap") {
+                    ch.remove();
+                  }
+                });
+              }
+            }
+          }
+        } catch (_) {}
       };
 
-      const triggerAppSaveAndRender = () => {
+      const triggerSaveSyncAndRender = () => {
+        const callIfFn = (fn) => {
+          try {
+            if (typeof fn === "function") fn();
+          } catch (_) {}
+        };
+
         try {
           if (typeof persistState === "function") persistState();
         } catch (_) {}
+        try {
+          if (typeof saveState === "function") saveState();
+        } catch (_) {}
+        try {
+          if (typeof saveToCloud === "function") saveToCloud();
+        } catch (_) {}
+        try {
+          if (typeof syncToCloud === "function") syncToCloud();
+        } catch (_) {}
+        try {
+          if (typeof pushCloudState === "function") pushCloudState();
+        } catch (_) {}
+
         try {
           if (typeof renderAll === "function") renderAll();
         } catch (_) {}
@@ -4053,11 +4113,16 @@ window.addEventListener("DOMContentLoaded", () => {
         try {
           if (typeof renderLoansTab === "function") renderLoansTab();
         } catch (_) {}
+
+        Object.keys(window).forEach((k) => {
+          if (/^(save|sync|persist|render|update).*(state|cloud|wallet|expense|saving|loan|ui)/i.test(k)) {
+            callIfFn(window[k]);
+          }
+        });
       };
 
       const performCompleteAccountReset = () => {
         try {
-          localStorage.removeItem("sf2_manual_topups_override_v7");
           localStorage.setItem("sf2_manual_topups_override_v7", "0");
         } catch (_) {}
 
@@ -4125,19 +4190,19 @@ window.addEventListener("DOMContentLoaded", () => {
           });
         } catch (_) {}
 
-        triggerAppSaveAndRender();
-        forceZeroDomSummary();
+        triggerSaveSyncAndRender();
+        clearVisibleListsAndBalances();
 
         setTimeout(() => {
-          triggerAppSaveAndRender();
-          forceZeroDomSummary();
+          triggerSaveSyncAndRender();
+          clearVisibleListsAndBalances();
           mountResetButton();
-        }, 120);
+        }, 150);
 
         setTimeout(() => {
-          forceZeroDomSummary();
+          clearVisibleListsAndBalances();
           mountResetButton();
-        }, 400);
+        }, 450);
       };
 
       const ensureModal = () => {
@@ -4214,6 +4279,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const targetContainer = walletTab || document.body;
 
         const wrap = document.createElement("div");
+        wrap.id = "sf2ResetBtnWrap";
         wrap.style.cssText = walletTab
           ? "display:flex;justify-content:flex-end;padding-top:4px;"
           : "display:flex;justify-content:center;padding:12px;";
@@ -4246,14 +4312,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Reset entire account v3 guard:", err);
+      if (window.console && console.warn) console.warn("Reset entire account v4 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV3);
+    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV4);
   } else {
-    initResetEntireAccountBtnV3();
+    initResetEntireAccountBtnV4();
   }
 })();
 </script>
