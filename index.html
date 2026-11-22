@@ -3984,10 +3984,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Reset Entire Account Button v4 (Full State + Lists + Cloud Sync + Bilingual AR/EN) -->
+  <!-- Reset Entire Account Button v5 (Full Reset Including Top Cards & Savings + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initResetEntireAccountBtnV4() {
+  function initResetEntireAccountBtnV5() {
     try {
       const BTN_ID = "sf2ResetEntireAccountBtn";
       const MODAL_ID = "sf2ResetEntireAccountModal";
@@ -4020,7 +4020,7 @@ window.addEventListener("DOMContentLoaded", () => {
         return null;
       };
 
-      const clearVisibleListsAndBalances = () => {
+      const zeroAllCurrencyLabelsInDom = () => {
         const zeroText = "0.00 SAR";
         [
           "walletTotalAdded",
@@ -4036,7 +4036,6 @@ window.addEventListener("DOMContentLoaded", () => {
           if (el) el.textContent = zeroText;
         });
 
-        // تفريغ حاويات سجل الحركات والمصروفات والمدخرات والقروض إن وُجدت
         const listIds = [
           "walletHistoryList",
           "recentWalletActivity",
@@ -4050,7 +4049,7 @@ window.addEventListener("DOMContentLoaded", () => {
           if (el) el.innerHTML = "";
         });
 
-        // تفريغ أي قوائم حركات داخل تبويب المحفظة بعد عنوان "أحدث حركات المحفظة"
+        // تفريغ أي عناصر بعد عنوان "أحدث حركات المحفظة"
         try {
           const walletTab = document.getElementById("tab-wallet");
           if (walletTab) {
@@ -4073,6 +4072,31 @@ window.addEventListener("DOMContentLoaded", () => {
             }
           }
         } catch (_) {}
+
+        // تصفير نصوص المبالغ في البطاقات خارج المودالات ومساعد sf2
+        try {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, null);
+          let node;
+          while ((node = walker.nextNode())) {
+            if (
+              node.id === BTN_ID ||
+              node.id === MODAL_ID ||
+              (node.closest && (node.closest("#" + MODAL_ID) || node.closest("[id*='sf2']")))
+            ) {
+              continue;
+            }
+            if (node.children && node.children.length === 0) {
+              const txt = (node.textContent || "").trim();
+              if (/^(SAR\s*)?-?[0-9,]+(\.[0-9]+)?(\s*SAR)?$/i.test(txt) && /[0-9]/.test(txt)) {
+                // تجنب تصفير سعر الصرف 3.75 أو USD 1
+                const parentTxt = (node.parentElement && node.parentElement.textContent) || "";
+                if (!/USD\s*1/i.test(parentTxt) && txt !== "3.75") {
+                  node.textContent = zeroText;
+                }
+              }
+            }
+          }
+        } catch (_) {}
       };
 
       const triggerSaveSyncAndRender = () => {
@@ -4084,33 +4108,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
         try {
           if (typeof persistState === "function") persistState();
-        } catch (_) {}
-        try {
           if (typeof saveState === "function") saveState();
-        } catch (_) {}
-        try {
           if (typeof saveToCloud === "function") saveToCloud();
-        } catch (_) {}
-        try {
           if (typeof syncToCloud === "function") syncToCloud();
-        } catch (_) {}
-        try {
           if (typeof pushCloudState === "function") pushCloudState();
-        } catch (_) {}
-
-        try {
           if (typeof renderAll === "function") renderAll();
-        } catch (_) {}
-        try {
           if (typeof renderWalletTab === "function") renderWalletTab();
-        } catch (_) {}
-        try {
           if (typeof renderExpensesTab === "function") renderExpensesTab();
-        } catch (_) {}
-        try {
           if (typeof renderSavingsTab === "function") renderSavingsTab();
-        } catch (_) {}
-        try {
           if (typeof renderLoansTab === "function") renderLoansTab();
         } catch (_) {}
 
@@ -4191,16 +4196,16 @@ window.addEventListener("DOMContentLoaded", () => {
         } catch (_) {}
 
         triggerSaveSyncAndRender();
-        clearVisibleListsAndBalances();
+        zeroAllCurrencyLabelsInDom();
 
         setTimeout(() => {
           triggerSaveSyncAndRender();
-          clearVisibleListsAndBalances();
+          zeroAllCurrencyLabelsInDom();
           mountResetButton();
         }, 150);
 
         setTimeout(() => {
-          clearVisibleListsAndBalances();
+          zeroAllCurrencyLabelsInDom();
           mountResetButton();
         }, 450);
       };
@@ -4312,14 +4317,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Reset entire account v4 guard:", err);
+      if (window.console && console.warn) console.warn("Reset entire account v5 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV4);
+    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV5);
   } else {
-    initResetEntireAccountBtnV4();
+    initResetEntireAccountBtnV5();
   }
 })();
 </script>
