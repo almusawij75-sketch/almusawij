@@ -3984,13 +3984,15 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Reset Entire Account Button v5 (Full Reset Including Top Cards & Savings + Bilingual AR/EN) -->
+  <!-- Reset Entire Account Button v6 (Persist Reset Across Refresh + Cloud Sync + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initResetEntireAccountBtnV5() {
+  function initResetEntireAccountBtnV6() {
     try {
       const BTN_ID = "sf2ResetEntireAccountBtn";
       const MODAL_ID = "sf2ResetEntireAccountModal";
+      const RESET_FLAG_KEY = "sf2_account_reset_v6";
+      const TOPUPS_OVERRIDE_KEY = "sf2_manual_topups_override_v7";
 
       const getLang = () => {
         try {
@@ -4049,7 +4051,6 @@ window.addEventListener("DOMContentLoaded", () => {
           if (el) el.innerHTML = "";
         });
 
-        // تفريغ أي عناصر بعد عنوان "أحدث حركات المحفظة"
         try {
           const walletTab = document.getElementById("tab-wallet");
           if (walletTab) {
@@ -4073,7 +4074,6 @@ window.addEventListener("DOMContentLoaded", () => {
           }
         } catch (_) {}
 
-        // تصفير نصوص المبالغ في البطاقات خارج المودالات ومساعد sf2
         try {
           const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, null);
           let node;
@@ -4088,7 +4088,6 @@ window.addEventListener("DOMContentLoaded", () => {
             if (node.children && node.children.length === 0) {
               const txt = (node.textContent || "").trim();
               if (/^(SAR\s*)?-?[0-9,]+(\.[0-9]+)?(\s*SAR)?$/i.test(txt) && /[0-9]/.test(txt)) {
-                // تجنب تصفير سعر الصرف 3.75 أو USD 1
                 const parentTxt = (node.parentElement && node.parentElement.textContent) || "";
                 if (!/USD\s*1/i.test(parentTxt) && txt !== "3.75") {
                   node.textContent = zeroText;
@@ -4096,6 +4095,44 @@ window.addEventListener("DOMContentLoaded", () => {
               }
             }
           }
+        } catch (_) {}
+      };
+
+      const applyZeroToStateObject = () => {
+        const st = getStateObj();
+        if (!st) return;
+        try {
+          Object.keys(st).forEach((key) => {
+            if (
+              key === "language" ||
+              key === "theme" ||
+              key === "currency" ||
+              key === "rate" ||
+              key === "user" ||
+              key === "auth" ||
+              key === "cloudUser"
+            ) {
+              return;
+            }
+            const val = st[key];
+            if (Array.isArray(val)) {
+              st[key] = [];
+            } else if (typeof val === "number") {
+              st[key] = 0;
+            } else if (val && typeof val === "object") {
+              Object.keys(val).forEach((subKey) => {
+                if (Array.isArray(val[subKey])) val[subKey] = [];
+                else if (typeof val[subKey] === "number") val[subKey] = 0;
+              });
+            }
+          });
+
+          st._sf2CustomTotalTopups = 0;
+          if ("walletBalance" in st) st.walletBalance = 0;
+          if ("savingsBalance" in st) st.savingsBalance = 0;
+          if ("savingsTotal" in st) st.savingsTotal = 0;
+          if ("totalTopups" in st) st.totalTopups = 0;
+          if ("addedTotal" in st) st.addedTotal = 0;
         } catch (_) {}
       };
 
@@ -4128,49 +4165,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const performCompleteAccountReset = () => {
         try {
-          localStorage.setItem("sf2_manual_topups_override_v7", "0");
+          localStorage.setItem(TOPUPS_OVERRIDE_KEY, "0");
+          localStorage.setItem(RESET_FLAG_KEY, "1");
         } catch (_) {}
 
-        const st = getStateObj();
-        if (st) {
-          try {
-            Object.keys(st).forEach((key) => {
-              if (
-                key === "language" ||
-                key === "theme" ||
-                key === "currency" ||
-                key === "rate" ||
-                key === "user" ||
-                key === "auth" ||
-                key === "cloudUser"
-              ) {
-                return;
-              }
-              const val = st[key];
-              if (Array.isArray(val)) {
-                st[key] = [];
-              } else if (typeof val === "number") {
-                st[key] = 0;
-              } else if (val && typeof val === "object") {
-                Object.keys(val).forEach((subKey) => {
-                  if (Array.isArray(val[subKey])) val[subKey] = [];
-                  else if (typeof val[subKey] === "number") val[subKey] = 0;
-                });
-              }
-            });
-
-            st._sf2CustomTotalTopups = 0;
-            if ("walletBalance" in st) st.walletBalance = 0;
-            if ("savingsBalance" in st) st.savingsBalance = 0;
-            if ("savingsTotal" in st) st.savingsTotal = 0;
-            if ("totalTopups" in st) st.totalTopups = 0;
-            if ("addedTotal" in st) st.addedTotal = 0;
-          } catch (_) {}
-        }
+        applyZeroToStateObject();
 
         try {
           Object.keys(localStorage || {}).forEach((k) => {
-            if (k === "sf2_manual_topups_override_v7") return;
+            if (k === TOPUPS_OVERRIDE_KEY || k === RESET_FLAG_KEY) return;
             const lower = k.toLowerCase();
             const isProtected =
               lower.includes("auth") ||
@@ -4199,16 +4202,32 @@ window.addEventListener("DOMContentLoaded", () => {
         zeroAllCurrencyLabelsInDom();
 
         setTimeout(() => {
+          applyZeroToStateObject();
           triggerSaveSyncAndRender();
           zeroAllCurrencyLabelsInDom();
           mountResetButton();
-        }, 150);
+        }, 180);
 
         setTimeout(() => {
+          applyZeroToStateObject();
           zeroAllCurrencyLabelsInDom();
           mountResetButton();
-        }, 450);
+        }, 600);
       };
+
+      // إذا كان الحساب قد صُفّر مسبقاً ولم تُضف بيانات جديدة، نحافظ على الحالة المصفّرة بعد التحديث
+      try {
+        if (localStorage.getItem(RESET_FLAG_KEY) === "1") {
+          setTimeout(() => {
+            applyZeroToStateObject();
+            zeroAllCurrencyLabelsInDom();
+          }, 250);
+          setTimeout(() => {
+            applyZeroToStateObject();
+            zeroAllCurrencyLabelsInDom();
+          }, 900);
+        }
+      } catch (_) {}
 
       const ensureModal = () => {
         if (document.getElementById(MODAL_ID)) return document.getElementById(MODAL_ID);
@@ -4317,14 +4336,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Reset entire account v5 guard:", err);
+      if (window.console && console.warn) console.warn("Reset entire account v6 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV5);
+    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV6);
   } else {
-    initResetEntireAccountBtnV5();
+    initResetEntireAccountBtnV6();
   }
 })();
 </script>
