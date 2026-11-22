@@ -3669,13 +3669,14 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Edit Total Top-ups Icon Button v6 (Always-Synced Formula: Top-ups - Expenses - Savings -> Current Wallet) -->
+  <!-- Edit Total Top-ups Icon Button v7 (Persistent LocalStorage + Dynamic Box Sync + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initEditTotalTopupsBoxV6() {
+  function initEditTotalTopupsBoxV7() {
     try {
       const BTN_ID = "sf2EditTotalTopupsBtn";
       const MODAL_ID = "sf2EditTotalTopupsModal";
+      const STORAGE_KEY = "sf2_manual_topups_override_v7";
       let isSyncing = false;
 
       const getLang = () => {
@@ -3705,6 +3706,27 @@ window.addEventListener("DOMContentLoaded", () => {
         })} SAR`;
       };
 
+      const readSavedOverride = () => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw === null || raw === "") return null;
+          const num = parseFloat(raw);
+          return Number.isFinite(num) && num >= 0 ? num : null;
+        } catch (_) {
+          return null;
+        }
+      };
+
+      const writeSavedOverride = (val) => {
+        try {
+          if (val === null || val === undefined || !Number.isFinite(Number(val))) {
+            localStorage.removeItem(STORAGE_KEY);
+          } else {
+            localStorage.setItem(STORAGE_KEY, String(Number(val)));
+          }
+        } catch (_) {}
+      };
+
       const getExpensesDeductedValue = () => {
         const expEl = document.getElementById("walletTotalExpenses");
         if (expEl && expEl.textContent && expEl.textContent.trim()) {
@@ -3722,16 +3744,9 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const getCurrentTopupsValue = () => {
-        try {
-          if (
-            typeof state !== "undefined" &&
-            state &&
-            typeof state._sf2CustomTotalTopups === "number" &&
-            Number.isFinite(state._sf2CustomTotalTopups)
-          ) {
-            return state._sf2CustomTotalTopups;
-          }
-        } catch (_) {}
+        const saved = readSavedOverride();
+        if (saved !== null) return saved;
+
         const el = document.getElementById("walletTotalAdded");
         if (el && el.textContent && el.textContent.trim()) {
           return parseNumericFromText(el.textContent);
@@ -3747,10 +3762,8 @@ window.addEventListener("DOMContentLoaded", () => {
           const balEl = document.getElementById("walletSummaryBalance");
           if (!totalEl && !balEl) return;
 
-          const topupsVal =
-            typeof overrideTopupsVal === "number" && Number.isFinite(overrideTopupsVal)
-              ? overrideTopupsVal
-              : getCurrentTopupsValue();
+          const hasExplicitOverride = typeof overrideTopupsVal === "number" && Number.isFinite(overrideTopupsVal);
+          const topupsVal = hasExplicitOverride ? overrideTopupsVal : getCurrentTopupsValue();
 
           const expensesVal = getExpensesDeductedValue();
           const savingsVal = getSavingsTransferredValue();
@@ -3768,9 +3781,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
           try {
             if (typeof state !== "undefined" && state) {
-              state._sf2CustomTotalTopups = topupsVal;
-              if ("totalTopups" in state) state.totalTopups = topupsVal;
-              if ("addedTotal" in state) state.addedTotal = topupsVal;
               state.walletBalance = currentWalletVal;
             }
           } catch (_) {}
@@ -3787,20 +3797,15 @@ window.addEventListener("DOMContentLoaded", () => {
         const numericVal = Number(newVal);
         if (!Number.isFinite(numericVal) || numericVal < 0) return;
 
-        try {
-          if (typeof state !== "undefined" && state) {
-            state._sf2CustomTotalTopups = numericVal;
-          }
-        } catch (_) {}
-
+        writeSavedOverride(numericVal);
         recomputeAndSyncBox(numericVal);
 
         try {
           if (typeof persistState === "function") persistState();
         } catch (_) {}
 
-        setTimeout(() => recomputeAndSyncBox(numericVal), 100);
-        setTimeout(() => recomputeAndSyncBox(numericVal), 350);
+        setTimeout(() => recomputeAndSyncBox(numericVal), 120);
+        setTimeout(() => recomputeAndSyncBox(numericVal), 400);
       };
 
       const ensureModal = () => {
@@ -3940,7 +3945,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const observer = new MutationObserver(() => {
           if (!isSyncing) {
-            setTimeout(() => recomputeAndSyncBox(), 20);
+            setTimeout(() => recomputeAndSyncBox(), 25);
           }
         });
 
@@ -3958,7 +3963,7 @@ window.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         recomputeAndSyncBox();
         observeBoxChanges();
-      }, 900);
+      }, 950);
 
       const langBtn = document.getElementById("langToggleBtn");
       if (langBtn) {
@@ -3968,14 +3973,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Edit total top-ups box v6 guard:", err);
+      if (window.console && console.warn) console.warn("Edit total top-ups box v7 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initEditTotalTopupsBoxV6);
+    document.addEventListener("DOMContentLoaded", initEditTotalTopupsBoxV7);
   } else {
-    initEditTotalTopupsBoxV6();
+    initEditTotalTopupsBoxV7();
   }
 })();
 </script>
