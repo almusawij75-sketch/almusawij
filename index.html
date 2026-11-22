@@ -3979,16 +3979,19 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Reset Entire Account Button v1 (Bilingual AR/EN + Safe Confirmation + Non-Invasive) -->
+  <!-- Reset Entire Account Button v2 (Reliable State + DOM Reset + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initResetEntireAccountBtn() {
+  function initResetEntireAccountBtnV2() {
     try {
       const BTN_ID = "sf2ResetEntireAccountBtn";
       const MODAL_ID = "sf2ResetEntireAccountModal";
 
       const getLang = () => {
         try {
+          if (typeof window.state !== "undefined" && window.state && (window.state.language === "en" || window.state.language === "ar")) {
+            return window.state.language;
+          }
           if (typeof state !== "undefined" && state && (state.language === "en" || state.language === "ar")) {
             return state.language;
           }
@@ -3998,63 +4001,132 @@ window.addEventListener("DOMContentLoaded", () => {
         return langAttr.indexOf("en") === 0 && dirAttr !== "rtl" ? "en" : "ar";
       };
 
-      const performAccountReset = () => {
+      const getStateObj = () => {
         try {
-          if (typeof state !== "undefined" && state) {
-            const preservedLang = state.language || getLang();
-            const preservedTheme = state.theme;
-            const preservedCurrency = state.currency;
-            const preservedRate = state.rate;
-
-            if (Array.isArray(state.expenses)) state.expenses = [];
-            if (Array.isArray(state.walletHistory)) state.walletHistory = [];
-            if (Array.isArray(state.savingsHistory)) state.savingsHistory = [];
-            if (Array.isArray(state.loans)) state.loans = [];
-            if (Array.isArray(state.transactions)) state.transactions = [];
-
-            if ("walletBalance" in state) state.walletBalance = 0;
-            if ("savingsBalance" in state) state.savingsBalance = 0;
-            if ("savingsTotal" in state) state.savingsTotal = 0;
-            if ("totalTopups" in state) state.totalTopups = 0;
-            if ("addedTotal" in state) state.addedTotal = 0;
-            if ("_sf2CustomTotalTopups" in state) state._sf2CustomTotalTopups = 0;
-
-            state.language = preservedLang;
-            if (preservedTheme !== undefined) state.theme = preservedTheme;
-            if (preservedCurrency !== undefined) state.currency = preservedCurrency;
-            if (preservedRate !== undefined) state.rate = preservedRate;
+          if (typeof window.state !== "undefined" && window.state && typeof window.state === "object") {
+            return window.state;
           }
         } catch (_) {}
+        try {
+          if (typeof state !== "undefined" && state && typeof state === "object") {
+            return state;
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const forceZeroDomSummary = () => {
+        const zeroText = "0.00 SAR";
+        ["walletTotalAdded", "walletTotalExpenses", "walletTotalSavings", "walletSummaryBalance"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = zeroText;
+        });
+
+        // تصفير أي أرصدة نصية في بطاقات المحفظة والمدخرات والقروض إن وُجدت
+        const balanceIds = ["currentWalletBalance", "walletBalanceText", "savingsTotalBalance", "loansTotalBalance"];
+        balanceIds.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = zeroText;
+        });
+      };
+
+      const triggerAppSaveAndRender = () => {
+        const fnNames = ["persistState", "saveState", "saveData", "renderAll", "renderWalletTab", "renderExpensesTab", "renderSavingsTab", "renderLoansTab", "updateUI"];
+        fnNames.forEach((fnName) => {
+          try {
+            if (typeof window[fnName] === "function") {
+              window[fnName]();
+            }
+          } catch (_) {}
+          try {
+            if (typeof eval === "function") {
+              // لا نستخدم eval على مدخلات خارجية، فقط تحقق آمن للدوال المعروفة إن كانت معرفة في النطاق
+            }
+          } catch (_) {}
+        });
+
+        try {
+          if (typeof persistState === "function") persistState();
+        } catch (_) {}
+        try {
+          if (typeof renderAll === "function") renderAll();
+        } catch (_) {}
+        try {
+          if (typeof renderWalletTab === "function") renderWalletTab();
+        } catch (_) {}
+        try {
+          if (typeof renderExpensesTab === "function") renderExpensesTab();
+        } catch (_) {}
+        try {
+          if (typeof renderSavingsTab === "function") renderSavingsTab();
+        } catch (_) {}
+        try {
+          if (typeof renderLoansTab === "function") renderLoansTab();
+        } catch (_) {}
+      };
+
+      const performAccountReset = () => {
+        const st = getStateObj();
+        if (st) {
+          try {
+            Object.keys(st).forEach((key) => {
+              if (
+                key === "language" ||
+                key === "theme" ||
+                key === "currency" ||
+                key === "rate" ||
+                key === "user" ||
+                key === "auth" ||
+                key === "cloudUser"
+              ) {
+                return;
+              }
+              const val = st[key];
+              if (Array.isArray(val)) {
+                st[key] = [];
+              } else if (typeof val === "number") {
+                st[key] = 0;
+              }
+            });
+            st._sf2CustomTotalTopups = 0;
+            if ("walletBalance" in st) st.walletBalance = 0;
+            if ("savingsBalance" in st) st.savingsBalance = 0;
+            if ("savingsTotal" in st) st.savingsTotal = 0;
+            if ("totalTopups" in st) st.totalTopups = 0;
+            if ("addedTotal" in st) st.addedTotal = 0;
+          } catch (_) {}
+        }
 
         try {
           Object.keys(localStorage || {}).forEach((k) => {
             const lower = k.toLowerCase();
-            if (
-              lower.includes("sf2customtotaltopups") ||
-              lower.includes("wallet") ||
-              lower.includes("expense") ||
-              lower.includes("saving") ||
-              lower.includes("loan")
-            ) {
-              if (!lower.includes("auth") && !lower.includes("user") && !lower.includes("session") && !lower.includes("token")) {
-                localStorage.removeItem(k);
-              }
+            const isProtected =
+              lower.includes("auth") ||
+              lower.includes("user") ||
+              lower.includes("session") ||
+              lower.includes("token") ||
+              lower.includes("firebase") ||
+              lower.includes("supabase");
+
+            if (!isProtected && (lower.includes("sf2") || lower.includes("finance") || lower.includes("wallet") || lower.includes("state"))) {
+              localStorage.removeItem(k);
             }
           });
         } catch (_) {}
 
-        try {
-          if (typeof persistState === "function") persistState();
-          if (typeof renderAll === "function") renderAll();
-          else if (typeof renderWalletTab === "function") renderWalletTab();
-        } catch (_) {}
+        triggerAppSaveAndRender();
+        forceZeroDomSummary();
 
         setTimeout(() => {
-          try {
-            if (typeof renderAll === "function") renderAll();
-          } catch (_) {}
+          triggerAppSaveAndRender();
+          forceZeroDomSummary();
           mountResetButton();
         }, 120);
+
+        setTimeout(() => {
+          forceZeroDomSummary();
+          mountResetButton();
+        }, 400);
       };
 
       const ensureModal = () => {
@@ -4119,10 +4191,11 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const mountResetButton = () => {
+        const lang = getLang();
+        const label = lang === "en" ? "Reset Entire Account" : "تصفير كامل الحساب";
+
         if (document.getElementById(BTN_ID)) {
-          const existing = document.getElementById(BTN_ID);
-          const lang = getLang();
-          existing.textContent = lang === "en" ? "Reset Entire Account" : "تصفير كامل الحساب";
+          document.getElementById(BTN_ID).textContent = label;
           return;
         }
 
@@ -4137,8 +4210,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const btn = document.createElement("button");
         btn.id = BTN_ID;
         btn.type = "button";
-        const lang = getLang();
-        btn.textContent = lang === "en" ? "Reset Entire Account" : "تصفير كامل الحساب";
+        btn.textContent = label;
         btn.style.cssText =
           "padding:8px 14px;border-radius:12px;border:1px solid #fecaca;background:var(--bg-card,#fffdfb);color:#dc2626;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s ease;";
 
@@ -4163,14 +4235,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Reset entire account button guard:", err);
+      if (window.console && console.warn) console.warn("Reset entire account v2 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtn);
+    document.addEventListener("DOMContentLoaded", initResetEntireAccountBtnV2);
   } else {
-    initResetEntireAccountBtn();
+    initResetEntireAccountBtnV2();
   }
 })();
 </script>
