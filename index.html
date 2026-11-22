@@ -3614,5 +3614,54 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
+  <!-- Hide Reset Top-ups Buttons v1 (Safe & Non-Invasive) -->
+<script>
+(function () {
+  function hideResetTopupsButtons() {
+    try {
+      const TARGET_LABELS = [
+        "reset day top-ups",
+        "reset month top-ups",
+        "reset year top-ups"
+      ];
+
+      const cleanResetButtons = () => {
+        const buttons = document.querySelectorAll("button");
+        buttons.forEach((btn) => {
+          const txt = (btn.textContent || "").trim().toLowerCase();
+          const id = (btn.id || "").toLowerCase();
+          if (
+            TARGET_LABELS.includes(txt) ||
+            id.includes("resetdaytopup") ||
+            id.includes("resetmonthtopup") ||
+            id.includes("resetyeartopup")
+          ) {
+            btn.style.display = "none";
+            btn.setAttribute("aria-hidden", "true");
+          }
+        });
+      };
+
+      cleanResetButtons();
+      setTimeout(cleanResetButtons, 150);
+
+      const langBtn = document.getElementById("langToggleBtn");
+      if (langBtn) {
+        langBtn.addEventListener("click", () => {
+          setTimeout(cleanResetButtons, 80);
+        });
+      }
+    } catch (err) {
+      if (window.console && console.warn) console.warn("Hide reset top-ups guard:", err);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", hideResetTopupsButtons);
+  } else {
+    hideResetTopupsButtons();
+  }
+})();
+</script>
 </body>
 </html>
