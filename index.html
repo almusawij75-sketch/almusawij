@@ -3614,15 +3614,18 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Hide Reset Top-ups Buttons v1 (Safe & Non-Invasive) -->
+  <!-- Hide Reset Top-ups Buttons v2 (AR + EN Safe & Non-Invasive) -->
 <script>
 (function () {
-  function hideResetTopupsButtons() {
+  function hideResetTopupsButtonsV2() {
     try {
-      const TARGET_LABELS = [
+      const TARGET_PHRASES = [
         "reset day top-ups",
         "reset month top-ups",
-        "reset year top-ups"
+        "reset year top-ups",
+        "تصفير إيداعات اليوم",
+        "تصفير إيداعات الشهر",
+        "تصفير إيداعات السنة"
       ];
 
       const cleanResetButtons = () => {
@@ -3630,12 +3633,13 @@ window.addEventListener("DOMContentLoaded", () => {
         buttons.forEach((btn) => {
           const txt = (btn.textContent || "").trim().toLowerCase();
           const id = (btn.id || "").toLowerCase();
-          if (
-            TARGET_LABELS.includes(txt) ||
+          const matchesText = TARGET_PHRASES.some((phrase) => txt === phrase || txt.includes(phrase));
+          const matchesId =
             id.includes("resetdaytopup") ||
             id.includes("resetmonthtopup") ||
-            id.includes("resetyeartopup")
-          ) {
+            id.includes("resetyeartopup");
+
+          if (matchesText || matchesId) {
             btn.style.display = "none";
             btn.setAttribute("aria-hidden", "true");
           }
@@ -3644,22 +3648,24 @@ window.addEventListener("DOMContentLoaded", () => {
 
       cleanResetButtons();
       setTimeout(cleanResetButtons, 150);
+      setTimeout(cleanResetButtons, 500);
 
       const langBtn = document.getElementById("langToggleBtn");
       if (langBtn) {
         langBtn.addEventListener("click", () => {
           setTimeout(cleanResetButtons, 80);
+          setTimeout(cleanResetButtons, 300);
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Hide reset top-ups guard:", err);
+      if (window.console && console.warn) console.warn("Hide reset top-ups v2 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", hideResetTopupsButtons);
+    document.addEventListener("DOMContentLoaded", hideResetTopupsButtonsV2);
   } else {
-    hideResetTopupsButtons();
+    hideResetTopupsButtonsV2();
   }
 })();
 </script>
