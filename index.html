@@ -4448,10 +4448,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Sync Top Current Wallet Card With Wallet Summary v8 (Bilingual AR/EN + Safe Isolation) -->
+  <!-- Sync Top Current Wallet Card With Wallet Summary v9 (Bilingual AR/EN + Safe Isolation) -->
 <script>
 (function () {
-  function initSyncWalletBalanceV8() {
+  function initSyncWalletBalanceV9() {
     try {
       let isSyncing = false;
 
@@ -4478,7 +4478,7 @@ window.addEventListener("DOMContentLoaded", () => {
           return (
             (t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary")) &&
             (t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet")) &&
-            t.length < 1200
+            t.length < 2500
           );
         });
         if (!summaryCard) return null;
@@ -4486,20 +4486,33 @@ window.addEventListener("DOMContentLoaded", () => {
         const leaves = Array.from(summaryCard.querySelectorAll("span, p, div, strong, b")).filter(
           (el) => el.children.length === 0 && (el.textContent || "").trim().length > 0
         );
+
         const labelEl = leaves.find((el) => {
           const t = (el.textContent || "").trim();
           return t === "المحفظة الحالية" || t.toLowerCase() === "current wallet";
         });
-        if (!labelEl || !labelEl.parentElement) return null;
 
-        const row = labelEl.parentElement;
-        const valEl = Array.from(row.querySelectorAll("span, p, div, strong, b")).find(
-          (el) => el.children.length === 0 && el !== labelEl && /SAR/i.test(el.textContent || "")
-        );
-        if (!valEl) return null;
+        if (labelEl) {
+          let curr = labelEl.parentElement;
+          for (let i = 0; i < 3 && curr; i++) {
+            const valEl = Array.from(curr.querySelectorAll("span, p, div, strong, b")).find(
+              (el) => el.children.length === 0 && el !== labelEl && /SAR\s*[0-9]/i.test(el.textContent || "")
+            );
+            if (valEl) {
+              const num = extractSarValue(valEl.textContent);
+              if (num !== null) return formatSar(num);
+            }
+            curr = curr.parentElement;
+          }
+        }
 
-        const num = extractSarValue(valEl.textContent);
-        return num !== null ? formatSar(num) : null;
+        const sarNodes = leaves.filter((el) => /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test((el.textContent || "").trim()));
+        if (sarNodes.length > 0) {
+          const lastNum = extractSarValue(sarNodes[sarNodes.length - 1].textContent);
+          if (lastNum !== null) return formatSar(lastNum);
+        }
+
+        return null;
       };
 
       const syncTopCurrentWalletCard = () => {
@@ -4514,21 +4527,24 @@ window.addEventListener("DOMContentLoaded", () => {
             const t = el.textContent || "";
             const isSummary = t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary");
             const hasTitle = t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet");
-            const hasSub = t.includes("الرصيد المتاح حالياً") || t.toLowerCase().includes("available balance");
-            return !isSummary && hasTitle && hasSub && t.length < 700;
+            const hasSub =
+              t.includes("الرصيد المتاح حالياً") ||
+              t.includes("الرصيد المتاح") ||
+              t.toLowerCase().includes("available balance") ||
+              t.toLowerCase().includes("available");
+            return !isSummary && hasTitle && hasSub && t.length < 1500;
           });
           if (!topCard) return;
 
           const leaves = Array.from(topCard.querySelectorAll("span, p, div, strong, b")).filter(
-            (el) => el.children.length === 0 && /SAR\s*[0-9]/i.test(el.textContent || "")
+            (el) => el.children.length === 0 && /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test((el.textContent || "").trim())
           );
-          const amountEl = leaves.find((el) => {
-            const t = (el.textContent || "").trim();
-            return /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test(t);
-          });
 
-          if (amountEl && amountEl.textContent.trim() !== targetText) {
-            amountEl.textContent = targetText;
+          if (leaves.length > 0) {
+            const amountEl = leaves[0];
+            if (amountEl.textContent.trim() !== targetText) {
+              amountEl.textContent = targetText;
+            }
           }
         } finally {
           setTimeout(() => {
@@ -4540,24 +4556,25 @@ window.addEventListener("DOMContentLoaded", () => {
       syncTopCurrentWalletCard();
       setTimeout(syncTopCurrentWalletCard, 250);
       setTimeout(syncTopCurrentWalletCard, 800);
+      setTimeout(syncTopCurrentWalletCard, 1800);
 
       if (typeof MutationObserver !== "undefined") {
         const obs = new MutationObserver(() => {
           if (!isSyncing) {
-            setTimeout(syncTopCurrentWalletCard, 40);
+            setTimeout(syncTopCurrentWalletCard, 50);
           }
         });
         obs.observe(document.body, { childList: true, subtree: true });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Sync wallet balance v8 guard:", err);
+      if (window.console && console.warn) console.warn("Sync wallet balance v9 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV8);
+    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV9);
   } else {
-    initSyncWalletBalanceV8();
+    initSyncWalletBalanceV9();
   }
 })();
 </script>
