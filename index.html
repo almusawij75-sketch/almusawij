@@ -3984,13 +3984,13 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Custom Range Comparison Box (Reads Directly From Expenses Table/List) + Customize Modal v5 (Bilingual AR/EN + Safe Isolation) -->
+  <!-- Custom Range Comparison Box v6 (Exact Period Sum + Clean Layout + Customize Modal + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initCustomRangeFromListV5() {
+  function initCustomRangeFromListV6() {
     try {
       const BOX_ID = "sf2CustomRangeCompareBox";
-      const ITEMS_WRAP_ID = "sf2CustomCompareToggleRowsV5";
+      const ITEMS_WRAP_ID = "sf2CustomCompareToggleRowsV6";
       const PERIODS_KEY = "sf2_custom_range_compare_v2";
       const VIS_KEY = "sf2_hidden_compare_boxes_v1";
       let isRendering = false;
@@ -4089,86 +4089,79 @@ window.addEventListener("DOMContentLoaded", () => {
         return null;
       };
 
-      const extractAmount = (txt) => {
+      const extractDecimalAmount = (txt) => {
         if (!txt) return null;
-        const s = String(txt).trim();
-        // يبحث عن رقم عشري أو صحيح بمبلغ (يتجنب التواريخ بصيغة YYYY-MM-DD)
-        const withoutDates = s.replace(/\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}\b/g, " ");
-        const sarMatch = withoutDates.match(/(?:SAR\s*|R\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-        if (!sarMatch) return null;
-        const num = parseFloat(sarMatch[1].replace(/,/g, ""));
-        return Number.isFinite(num) && num > 0 ? num : null;
+        const s = String(txt).replace(/\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}\b/g, " ");
+        const matches = Array.from(s.matchAll(/(?:SAR|R)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2}))/gi));
+        if (matches.length > 0) {
+          const last = matches[matches.length - 1][1];
+          const num = parseFloat(last.replace(/,/g, ""));
+          return Number.isFinite(num) && num > 0 ? num : null;
+        }
+        const intMatch = s.match(/(?:SAR|R)\s*([0-9][0-9,]*)/i);
+        if (intMatch) {
+          const num = parseFloat(intMatch[1].replace(/,/g, ""));
+          return Number.isFinite(num) && num > 0 ? num : null;
+        }
+        return null;
       };
 
-      // قراءة الصفوف مباشرة من لستة / جدول المصروفات الظاهرة في الصفحة أولاً
-      const collectRowsFromExpensesList = () => {
-        const entries = [];
+      const collectExpenses = () => {
+        const list = [];
         const seen = new Set();
 
-        const rows = Array.from(document.querySelectorAll("table tbody tr, tr, [data-expense-id], .expense-row, .expense-item"));
-        rows.forEach((row) => {
-          if (!row || (row.closest && row.closest("#" + BOX_ID))) return;
-          const fullText = (row.textContent || "").trim();
-          const dateIso = extractIsoDate(fullText);
-          if (!dateIso) return;
-
-          // نحاول استخراج المبلغ من خلايا الصف أو نص الصف
-          const cells = Array.from(row.querySelectorAll("td, th, span, div"));
-          let amt = null;
-          for (let i = cells.length - 1; i >= 0; i--) {
-            const cText = (cells[i].textContent || "").trim();
-            if (/^\d{4}-\d{2}-\d{2}$/.test(cText)) continue;
-            const candidate = extractAmount(cText);
-            if (candidate !== null && candidate !== Number(dateIso.slice(0, 4))) {
-              amt = candidate;
-              break;
-            }
-          }
-          if (amt === null) {
-            amt = extractAmount(fullText);
-          }
-
-          if (amt !== null && amt > 0) {
-            const key = `${dateIso}|${amt.toFixed(2)}|${fullText.slice(0, 40)}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              entries.push({ date: dateIso, amount: amt });
-            }
-          }
-        });
-
-        // احتياطي: إذا لم تكن الصفوف في DOM حالياً، نقرأ من state.expenses إن وُجدت
-        if (entries.length === 0) {
-          try {
-            const st = typeof window.state !== "undefined" ? window.state : typeof state !== "undefined" ? state : null;
-            if (st && Array.isArray(st.expenses)) {
-              st.expenses.forEach((exp) => {
-                if (!exp) return;
-                const dIso = extractIsoDate(exp.date || exp.createdAt || "");
-                const amt = Math.abs(Number(exp.amount ?? exp.value ?? 0));
-                if (dIso && Number.isFinite(amt) && amt > 0) {
-                  entries.push({ date: dIso, amount: amt });
+        // أولاً: قراءة مصفوفة المصروفات من state إن وُجدت لأنها تحوي كافة التواريخ حتى لو كانت اللستة مفلترة
+        try {
+          const st = typeof window.state !== "undefined" ? window.state : typeof state !== "undefined" ? state : null;
+          if (st && Array.isArray(st.expenses) && st.expenses.length > 0) {
+            st.expenses.forEach((exp, idx) => {
+              if (!exp || typeof exp !== "object") return;
+              const dIso = extractIsoDate(exp.date || exp.createdAt || exp.day || exp.timestamp || "");
+              const amt = Math.abs(Number(exp.amount ?? exp.value ?? exp.price ?? exp.total ?? 0));
+              if (dIso && Number.isFinite(amt) && amt > 0) {
+                const key = exp.id ? `id:${exp.id}` : `st:${idx}|${dIso}|${amt.toFixed(2)}`;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  list.push({ date: dIso, amount: amt });
                 }
-              });
+              }
+            });
+          }
+        } catch (_) {}
+
+        // ثانياً: إذا لم تتوفر مصفوفة state.expenses، نقرأ صفوف اللستة الظاهرة في الصفحة
+        if (list.length === 0) {
+          const rows = Array.from(document.querySelectorAll("table tbody tr, tr"));
+          rows.forEach((row, idx) => {
+            if (!row || (row.closest && row.closest("#" + BOX_ID))) return;
+            const txt = (row.textContent || "").trim();
+            const dIso = extractIsoDate(txt);
+            const amt = extractDecimalAmount(txt);
+            if (dIso && amt !== null && amt > 0) {
+              const key = `row:${idx}|${dIso}|${amt.toFixed(2)}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                list.push({ date: dIso, amount: amt });
+              }
             }
-          } catch (_) {}
+          });
         }
 
-        return entries;
+        return list;
       };
 
-      const sumListBetween = (fromIso, toIso) => {
+      const sumBetween = (fromIso, toIso) => {
         if (!fromIso || !toIso) return 0;
         const start = fromIso <= toIso ? fromIso : toIso;
         const end = fromIso <= toIso ? toIso : fromIso;
-        const list = collectRowsFromExpensesList();
-        let sum = 0;
-        list.forEach((item) => {
-          if (item.date >= start && item.date <= end) {
-            sum += item.amount;
+        const items = collectExpenses();
+        let total = 0;
+        items.forEach((it) => {
+          if (it.date >= start && it.date <= end) {
+            total += it.amount;
           }
         });
-        return Number(sum.toFixed(2));
+        return Number(total.toFixed(2));
       };
 
       const findCompareCards = () => {
@@ -4226,8 +4219,8 @@ window.addEventListener("DOMContentLoaded", () => {
         const isEn = lang === "en";
         const periods = readPeriods();
 
-        const valA = sumListBetween(periods.aFrom, periods.aTo);
-        const valB = sumListBetween(periods.bFrom, periods.bTo);
+        const valA = sumBetween(periods.aFrom, periods.aTo);
+        const valB = sumBetween(periods.bFrom, periods.bTo);
         const diff = Number((valB - valA).toFixed(2));
         const pctText =
           valA > 0
@@ -4255,8 +4248,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 isEn ? "Period A" : "الفترة الأولى"
               }</div>
               <div style="display:grid;gap:6px;margin-bottom:10px;">
-                <input id="sf2CmpAFromV5" type="date" value="${periods.aFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
-                <input id="sf2CmpAToV5" type="date" value="${periods.aTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpAFromV6" type="date" value="${periods.aFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpAToV6" type="date" value="${periods.aTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
               </div>
               <div style="font-size:15px;font-weight:800;white-space:nowrap;">${formatSar(valA)}</div>
             </div>
@@ -4266,8 +4259,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 isEn ? "Period B" : "الفترة الثانية"
               }</div>
               <div style="display:grid;gap:6px;margin-bottom:10px;">
-                <input id="sf2CmpBFromV5" type="date" value="${periods.bFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
-                <input id="sf2CmpBToV5" type="date" value="${periods.bTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpBFromV6" type="date" value="${periods.bFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpBToV6" type="date" value="${periods.bTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
               </div>
               <div style="font-size:15px;font-weight:800;white-space:nowrap;">${formatSar(valB)}</div>
             </div>
@@ -4275,7 +4268,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--text-secondary,#6b584e);direction:ltr;text-align:left;">
             <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">SAR (${periods.aFrom} ${arrow} ${periods.aTo}) • (${periods.bFrom} ${arrow} ${periods.bTo}) ${diffAbsStr}${diffSign}</span>
-            <button id="sf2CmpResetV5" type="button" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;flex-shrink:0;">${
+            <button id="sf2CmpResetV6" type="button" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;flex-shrink:0;">${
               isEn ? "Reset" : "إعادة"
             }</button>
           </div>
@@ -4283,20 +4276,20 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const bindChange = () => {
           writePeriods({
-            aFrom: (document.getElementById("sf2CmpAFromV5") || {}).value || periods.aFrom,
-            aTo: (document.getElementById("sf2CmpAToV5") || {}).value || periods.aTo,
-            bFrom: (document.getElementById("sf2CmpBFromV5") || {}).value || periods.bFrom,
-            bTo: (document.getElementById("sf2CmpBToV5") || {}).value || periods.bTo
+            aFrom: (document.getElementById("sf2CmpAFromV6") || {}).value || periods.aFrom,
+            aTo: (document.getElementById("sf2CmpAToV6") || {}).value || periods.aTo,
+            bFrom: (document.getElementById("sf2CmpBFromV6") || {}).value || periods.bFrom,
+            bTo: (document.getElementById("sf2CmpBToV6") || {}).value || periods.bTo
           });
           syncAll();
         };
 
-        ["sf2CmpAFromV5", "sf2CmpAToV5", "sf2CmpBFromV5", "sf2CmpBToV5"].forEach((id) => {
+        ["sf2CmpAFromV6", "sf2CmpAToV6", "sf2CmpBFromV6", "sf2CmpBToV6"].forEach((id) => {
           const inp = document.getElementById(id);
           if (inp) inp.addEventListener("change", bindChange);
         });
 
-        const resetBtn = document.getElementById("sf2CmpResetV5");
+        const resetBtn = document.getElementById("sf2CmpResetV6");
         if (resetBtn) {
           resetBtn.addEventListener("click", (e) => {
             e.preventDefault();
@@ -4444,14 +4437,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Custom range from list v5 guard:", err);
+      if (window.console && console.warn) console.warn("Custom range from list v6 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initCustomRangeFromListV5);
+    document.addEventListener("DOMContentLoaded", initCustomRangeFromListV6);
   } else {
-    initCustomRangeFromListV5();
+    initCustomRangeFromListV6();
   }
 })();
 </script>
