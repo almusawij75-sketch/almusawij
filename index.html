@@ -3852,6 +3852,11 @@ if (!window.confirm(msg)) return;
         try {
           if (typeof persistState === "function") persistState();
         } catch (_) {}
+      try {
+        if (window.__sf2App && typeof window.__sf2App.persist === "function") {
+          window.__sf2App.persist();
+        }
+      } catch (_) {}
 
         setTimeout(() => recomputeAndSyncBox(numericVal), 120);
         setTimeout(() => recomputeAndSyncBox(numericVal), 400);
