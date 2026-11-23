@@ -3984,14 +3984,14 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Custom Comparison Week Dates v1 (Soft Compact Control + Bilingual AR/EN + Safe Isolation) -->
+  <!-- Custom Comparison Dates v2 (Tiny Soft Calendar Icon for Week & Month + Layout Safe + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initCustomCompareWeekV1() {
+  function initCustomComparisonDatesV2() {
     try {
-      const CTRL_ID = "sf2CompareWeekControl";
-      const POPOVER_ID = "sf2CompareWeekPopover";
-      const STORAGE_KEY = "sf2_compare_week_v1";
+      const POPOVER_ID = "sf2ComparePopoverV2";
+      const STORAGE_KEY = "sf2_custom_compare_ranges_v2";
+      let activeMode = "week"; // "week" | "month"
 
       const getLang = () => {
         try {
@@ -4023,26 +4023,43 @@ window.addEventListener("DOMContentLoaded", () => {
         })}`;
       };
 
-      const readSavedDates = () => {
+      const readAllRanges = () => {
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return null;
+          if (!raw) return {};
           const parsed = JSON.parse(raw);
-          if (parsed && parsed.start && parsed.end && parsed.start <= parsed.end) {
-            return { start: String(parsed.start), end: String(parsed.end) };
-          }
-        } catch (_) {}
-        return null;
+          return parsed && typeof parsed === "object" ? parsed : {};
+        } catch (_) {
+          return {};
+        }
       };
 
-      const writeSavedDates = (start, end) => {
+      const writeRangeForMode = (mode, start, end) => {
         try {
+          const all = readAllRanges();
           if (!start || !end) {
-            localStorage.removeItem(STORAGE_KEY);
-            return;
+            delete all[mode];
+          } else {
+            all[mode] = { start: String(start), end: String(end) };
           }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ start, end }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
         } catch (_) {}
+      };
+
+      const getDefaultDates = (mode) => {
+        const now = new Date();
+        const toIso = (d) =>
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+        if (mode === "month") {
+          const firstPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+          return { start: toIso(firstPrevMonth), end: toIso(lastPrevMonth) };
+        }
+
+        const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const startDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - 6);
+        return { start: toIso(startDate), end: toIso(endDate) };
       };
 
       const getStateObj = () => {
@@ -4059,46 +4076,19 @@ window.addEventListener("DOMContentLoaded", () => {
         return null;
       };
 
-      const getDefaultPrevious7Days = () => {
-        const now = new Date();
-        const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        const startDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - 6);
-        const toIso = (d) =>
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return { start: toIso(startDate), end: toIso(endDate) };
-      };
-
-      const findWeekComparisonCard = () => {
-        const candidates = Array.from(document.querySelectorAll("div, section, article"));
-        return (
-          candidates.find((el) => {
-            const txt = (el.textContent || "");
-            const hasTitle = txt.includes("مقارنة أسبوع بأسبوع") || txt.toLowerCase().includes("week over week");
-            const hasSelectedWeek = txt.includes("الأسبوع المحدد") || txt.toLowerCase().includes("selected week");
-            return hasTitle && hasSelectedWeek && el.querySelectorAll("div").length >= 2;
-          }) || null
-        );
-      };
-
       const computeRangeSpending = (startIso, endIso) => {
         const st = getStateObj();
         const items = [];
-
         if (st) {
-          if (Array.isArray(st.expenses)) {
-            st.expenses.forEach((e) => items.push(e));
-          }
+          if (Array.isArray(st.expenses)) st.expenses.forEach((e) => items.push(e));
           if (Array.isArray(st.transactions)) {
             st.transactions.forEach((t) => {
               if (!t) return;
               const tp = String(t.type || "").toLowerCase();
-              if (tp.includes("expense") || tp.includes("spend") || Number(t.amount) < 0) {
-                items.push(t);
-              }
+              if (tp.includes("expense") || tp.includes("spend") || Number(t.amount) < 0) items.push(t);
             });
           }
         }
-
         if (!items.length) return null;
 
         let total = 0;
@@ -4120,27 +4110,61 @@ window.addEventListener("DOMContentLoaded", () => {
         return matched > 0 || items.length > 0 ? Number(total.toFixed(2)) : null;
       };
 
-      const applyCustomComparisonToCard = (card) => {
-        const saved = readSavedDates();
-        if (!saved || !card) return;
+      const findCards = () => {
+        const all = Array.from(document.querySelectorAll("div, section, article"));
+        const weekCard =
+          all.find((el) => {
+            const t = el.textContent || "";
+            return (
+              (t.includes("مقارنة أسبوع بأسبوع") || t.toLowerCase().includes("week over week")) &&
+              (t.includes("الأسبوع المحدد") || t.toLowerCase().includes("selected week")) &&
+              t.length < 900
+            );
+          }) || null;
 
-        const allLeaves = Array.from(card.querySelectorAll("span, p, div, strong, b")).filter(
+        const monthCard =
+          all.find((el) => {
+            const t = el.textContent || "";
+            return (
+              (t.includes("مقارنة شهر بشهر") || t.toLowerCase().includes("month over month")) &&
+              (t.includes("الشهر المحدد") || t.toLowerCase().includes("selected month")) &&
+              t.length < 900
+            );
+          }) || null;
+
+        return { weekCard, monthCard };
+      };
+
+      const applyRangeToCard = (card, mode) => {
+        if (!card) return;
+        const ranges = readAllRanges();
+        const saved = ranges[mode];
+        if (!saved || !saved.start || !saved.end) return;
+
+        const leaves = Array.from(card.querySelectorAll("span, p, div, strong, b")).filter(
           (el) => el.children.length === 0 && (el.textContent || "").trim().length > 0
         );
 
-        const prevLabelEl = allLeaves.find((el) => {
+        const prevLabelEl = leaves.find((el) => {
           const t = (el.textContent || "").trim();
           return (
             t.includes("7 أيام السابقة") ||
-            t.includes("الأسبوع المقارن") ||
+            t.includes("الشهر السابق") ||
+            t.includes("مقارنة (") ||
             t.toLowerCase().includes("previous 7 days") ||
-            t.toLowerCase().includes("compared week")
+            t.toLowerCase().includes("previous month") ||
+            t.toLowerCase().includes("compare (")
           );
         });
 
-        const selectedLabelEl = allLeaves.find((el) => {
+        const selectedLabelEl = leaves.find((el) => {
           const t = (el.textContent || "").trim();
-          return t.includes("الأسبوع المحدد") || t.toLowerCase().includes("selected week");
+          return (
+            t.includes("الأسبوع المحدد") ||
+            t.includes("الشهر المحدد") ||
+            t.toLowerCase().includes("selected week") ||
+            t.toLowerCase().includes("selected month")
+          );
         });
 
         const findAmountNear = (labelEl) => {
@@ -4158,7 +4182,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const lang = getLang();
         if (prevLabelEl) {
           prevLabelEl.textContent =
-            lang === "en" ? `Compare (${saved.start} → ${saved.end})` : `مقارنة (${saved.start} ← ${saved.end})`;
+            lang === "en" ? `${saved.start.slice(5)} → ${saved.end.slice(5)}` : `${saved.start.slice(5)} ← ${saved.end.slice(5)}`;
         }
 
         const calculated = computeRangeSpending(saved.start, saved.end);
@@ -4194,22 +4218,22 @@ window.addEventListener("DOMContentLoaded", () => {
         pop.innerHTML = `
           <div style="background:var(--bg-card,#fffdfb);color:var(--text-primary,#2c221e);border:1px solid var(--border-color,#ead8cb);border-radius:18px;width:100%;max-width:340px;padding:16px;box-shadow:0 16px 34px rgba(0,0,0,0.15);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-              <h4 id="sf2CmpTitle" style="margin:0;font-size:14px;font-weight:800;"></h4>
-              <button type="button" id="sf2CmpResetDefault" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:11px;font-weight:700;cursor:pointer;padding:2px 6px;"></button>
+              <h4 id="sf2CmpTitleV2" style="margin:0;font-size:14px;font-weight:800;"></h4>
+              <button type="button" id="sf2CmpResetV2" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:11px;font-weight:700;cursor:pointer;padding:2px 6px;"></button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
               <div>
-                <label id="sf2CmpFromLabel" for="sf2CmpFromInput" style="display:block;font-size:11px;margin-bottom:4px;color:var(--text-secondary,#6b584e);"></label>
-                <input id="sf2CmpFromInput" type="date" style="width:100%;box-sizing:border-box;padding:8px 8px;border-radius:11px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-subtle,#fbf2eb);color:inherit;font-size:12px;font-weight:600;" />
+                <label id="sf2CmpFromLabelV2" for="sf2CmpFromInputV2" style="display:block;font-size:11px;margin-bottom:4px;color:var(--text-secondary,#6b584e);"></label>
+                <input id="sf2CmpFromInputV2" type="date" style="width:100%;box-sizing:border-box;padding:8px 8px;border-radius:11px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-subtle,#fbf2eb);color:inherit;font-size:12px;font-weight:600;" />
               </div>
               <div>
-                <label id="sf2CmpToLabel" for="sf2CmpToInput" style="display:block;font-size:11px;margin-bottom:4px;color:var(--text-secondary,#6b584e);"></label>
-                <input id="sf2CmpToInput" type="date" style="width:100%;box-sizing:border-box;padding:8px 8px;border-radius:11px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-subtle,#fbf2eb);color:inherit;font-size:12px;font-weight:600;" />
+                <label id="sf2CmpToLabelV2" for="sf2CmpToInputV2" style="display:block;font-size:11px;margin-bottom:4px;color:var(--text-secondary,#6b584e);"></label>
+                <input id="sf2CmpToInputV2" type="date" style="width:100%;box-sizing:border-box;padding:8px 8px;border-radius:11px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-subtle,#fbf2eb);color:inherit;font-size:12px;font-weight:600;" />
               </div>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;">
-              <button type="button" id="sf2CmpCancelBtn" style="padding:7px 12px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:var(--text-primary,#2c221e);font-size:12px;font-weight:700;cursor:pointer;"></button>
-              <button type="button" id="sf2CmpApplyBtn" style="padding:7px 14px;border-radius:10px;border:none;background:var(--accent,#c2410c);color:#ffffff;font-size:12px;font-weight:700;cursor:pointer;"></button>
+              <button type="button" id="sf2CmpCancelV2" style="padding:7px 12px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:var(--text-primary,#2c221e);font-size:12px;font-weight:700;cursor:pointer;"></button>
+              <button type="button" id="sf2CmpApplyV2" style="padding:7px 14px;border-radius:10px;border:none;background:var(--accent,#c2410c);color:#ffffff;font-size:12px;font-weight:700;cursor:pointer;"></button>
             </div>
           </div>
         `;
@@ -4222,136 +4246,149 @@ window.addEventListener("DOMContentLoaded", () => {
         pop.addEventListener("click", (e) => {
           if (e.target === pop) closePop();
         });
-        document.getElementById("sf2CmpCancelBtn").addEventListener("click", closePop);
-        document.getElementById("sf2CmpResetDefault").addEventListener("click", () => {
-          writeSavedDates(null, null);
+        document.getElementById("sf2CmpCancelV2").addEventListener("click", closePop);
+        document.getElementById("sf2CmpResetV2").addEventListener("click", () => {
+          writeRangeForMode(activeMode, null, null);
           closePop();
           try {
             if (typeof renderAll === "function") renderAll();
           } catch (_) {}
-          setTimeout(mountControl, 80);
+          setTimeout(mountAllControls, 80);
         });
-        document.getElementById("sf2CmpApplyBtn").addEventListener("click", () => {
-          const fromVal = (document.getElementById("sf2CmpFromInput") || {}).value;
-          const toVal = (document.getElementById("sf2CmpToInput") || {}).value;
+        document.getElementById("sf2CmpApplyV2").addEventListener("click", () => {
+          const fromVal = (document.getElementById("sf2CmpFromInputV2") || {}).value;
+          const toVal = (document.getElementById("sf2CmpToInputV2") || {}).value;
           if (!fromVal || !toVal) return;
           const start = fromVal <= toVal ? fromVal : toVal;
           const end = fromVal <= toVal ? toVal : fromVal;
-          writeSavedDates(start, end);
+          writeRangeForMode(activeMode, start, end);
           closePop();
-          mountControl();
+          mountAllControls();
         });
 
         return pop;
       };
 
-      const openPopover = () => {
+      const openPopoverFor = (mode) => {
+        activeMode = mode;
         const lang = getLang();
         const pop = ensurePopover();
-        const defs = getDefaultPrevious7Days();
-        const saved = readSavedDates() || defs;
+        const ranges = readAllRanges();
+        const saved = ranges[mode] || getDefaultDates(mode);
 
-        document.getElementById("sf2CmpTitle").textContent =
-          lang === "en" ? "Comparison Week Dates" : "تواريخ الأسبوع المقارن";
-        document.getElementById("sf2CmpResetDefault").textContent =
-          lang === "en" ? "Auto 7d" : "تلقائي 7 أيام";
-        document.getElementById("sf2CmpFromLabel").textContent =
+        const isMonth = mode === "month";
+        document.getElementById("sf2CmpTitleV2").textContent = isMonth
+          ? lang === "en"
+            ? "Compared Month Dates"
+            : "تواريخ الشهر المقارن"
+          : lang === "en"
+          ? "Compared Week Dates"
+          : "تواريخ الأسبوع المقارن";
+
+        document.getElementById("sf2CmpResetV2").textContent =
+          lang === "en" ? "Auto" : "تلقائي";
+        document.getElementById("sf2CmpFromLabelV2").textContent =
           lang === "en" ? "From" : "من تاريخ";
-        document.getElementById("sf2CmpToLabel").textContent =
+        document.getElementById("sf2CmpToLabelV2").textContent =
           lang === "en" ? "To" : "إلى تاريخ";
-        document.getElementById("sf2CmpCancelBtn").textContent =
+        document.getElementById("sf2CmpCancelV2").textContent =
           lang === "en" ? "Cancel" : "إلغاء";
-        document.getElementById("sf2CmpApplyBtn").textContent =
+        document.getElementById("sf2CmpApplyV2").textContent =
           lang === "en" ? "Apply" : "تطبيق";
 
-        document.getElementById("sf2CmpFromInput").value = saved.start;
-        document.getElementById("sf2CmpToInput").value = saved.end;
+        document.getElementById("sf2CmpFromInputV2").value = saved.start;
+        document.getElementById("sf2CmpToInputV2").value = saved.end;
 
         pop.style.display = "flex";
       };
 
-      const mountControl = () => {
-        const card = findWeekComparisonCard();
-        if (!card) return;
-
-        const lang = getLang();
-        const saved = readSavedDates();
-        const chipText = saved
-          ? lang === "en"
-            ? `${saved.start.slice(5)} → ${saved.end.slice(5)}`
-            : `${saved.start.slice(5)} ← ${saved.end.slice(5)}`
-          : lang === "en"
-          ? "Compare dates"
-          : "تحديد الفترة";
-
-        let ctrl = document.getElementById(CTRL_ID);
-        if (!ctrl) {
-          ctrl = document.createElement("button");
-          ctrl.id = CTRL_ID;
-          ctrl.type = "button";
-          ctrl.style.cssText =
-            "display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;border:1px solid var(--border-color,#e5cfc0);background:var(--bg-subtle,#fbf2eb);color:var(--text-secondary,#6b584e);font-size:10.5px;font-weight:700;cursor:pointer;line-height:1.2;transition:all 0.15s ease;";
-          ctrl.innerHTML = `
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      const createTinyCalendarIconBtn = (btnId, mode) => {
+        let btn = document.getElementById(btnId);
+        if (!btn) {
+          btn = document.createElement("button");
+          btn.id = btnId;
+          btn.type = "button";
+          btn.style.cssText =
+            "position:absolute;top:12px;inset-inline-start:12px;z-index:5;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border-radius:8px;border:1px solid var(--border-color,#e5cfc0);background:var(--bg-card,#fffdfb);color:var(--text-secondary,#6b584e);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.04);transition:all 0.15s ease;";
+          btn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="18" rx="2"/>
               <line x1="16" y1="2" x2="16" y2="6"/>
               <line x1="8" y1="2" x2="8" y2="6"/>
               <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
-            <span id="sf2CompareWeekChipText"></span>
           `;
-          ctrl.addEventListener("mouseenter", () => {
-            ctrl.style.borderColor = "var(--accent,#c2410c)";
-            ctrl.style.color = "var(--accent,#c2410c)";
+          btn.addEventListener("mouseenter", () => {
+            btn.style.borderColor = "var(--accent,#c2410c)";
+            btn.style.color = "var(--accent,#c2410c)";
           });
-          ctrl.addEventListener("mouseleave", () => {
-            ctrl.style.borderColor = "var(--border-color,#e5cfc0)";
-            ctrl.style.color = "var(--text-secondary,#6b584e)";
+          btn.addEventListener("mouseleave", () => {
+            btn.style.borderColor = "var(--border-color,#e5cfc0)";
+            btn.style.color = "var(--text-secondary,#6b584e)";
           });
-          ctrl.addEventListener("click", (e) => {
+          btn.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            openPopover();
+            openPopoverFor(mode);
           });
-
-          const headerRow = card.firstElementChild;
-          if (headerRow) {
-            headerRow.style.display = "flex";
-            headerRow.style.alignItems = "center";
-            headerRow.style.justifyContent = "space-between";
-            headerRow.style.gap = "8px";
-            headerRow.appendChild(ctrl);
-          } else {
-            card.insertBefore(ctrl, card.firstChild);
-          }
         }
 
-        const txtEl = document.getElementById("sf2CompareWeekChipText");
-        if (txtEl) txtEl.textContent = chipText;
-
-        applyCustomComparisonToCard(card);
+        const lang = getLang();
+        const label =
+          mode === "month"
+            ? lang === "en"
+              ? "Select compared month dates"
+              : "تحديد تواريخ الشهر المقارن"
+            : lang === "en"
+            ? "Select compared week dates"
+            : "تحديد تواريخ الأسبوع المقارن";
+        btn.setAttribute("aria-label", label);
+        btn.setAttribute("title", label);
+        return btn;
       };
 
-      mountControl();
-      setTimeout(mountControl, 300);
-      setTimeout(mountControl, 900);
+      const mountAllControls = () => {
+        const { weekCard, monthCard } = findCards();
+
+        if (weekCard) {
+          if (getComputedStyle(weekCard).position === "static") {
+            weekCard.style.position = "relative";
+          }
+          const weekBtn = createTinyCalendarIconBtn("sf2CmpWeekIconBtn", "week");
+          if (!weekBtn.parentElement) weekCard.appendChild(weekBtn);
+          applyRangeToCard(weekCard, "week");
+        }
+
+        if (monthCard) {
+          if (getComputedStyle(monthCard).position === "static") {
+            monthCard.style.position = "relative";
+          }
+          const monthBtn = createTinyCalendarIconBtn("sf2CmpMonthIconBtn", "month");
+          if (!monthBtn.parentElement) monthCard.appendChild(monthBtn);
+          applyRangeToCard(monthCard, "month");
+        }
+      };
+
+      mountAllControls();
+      setTimeout(mountAllControls, 300);
+      setTimeout(mountAllControls, 900);
 
       const langBtn = document.getElementById("langToggleBtn");
       if (langBtn) {
         langBtn.addEventListener("click", () => {
-          setTimeout(mountControl, 90);
-          setTimeout(mountControl, 320);
+          setTimeout(mountAllControls, 90);
+          setTimeout(mountAllControls, 320);
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Custom compare week v1 guard:", err);
+      if (window.console && console.warn) console.warn("Custom comparison dates v2 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initCustomCompareWeekV1);
+    document.addEventListener("DOMContentLoaded", initCustomComparisonDatesV2);
   } else {
-    initCustomCompareWeekV1();
+    initCustomComparisonDatesV2();
   }
 })();
 </script>
