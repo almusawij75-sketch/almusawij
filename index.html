@@ -3984,13 +3984,13 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Custom Range Comparison Box + Native Dashboard Customize Modal Integration v4 (Card-Matched Layout + Broad Data Read + Bilingual AR/EN) -->
+  <!-- Custom Range Comparison Box (Reads Directly From Expenses Table/List) + Customize Modal v5 (Bilingual AR/EN + Safe Isolation) -->
 <script>
 (function () {
-  function initCustomRangeAndCustomizeModalV4() {
+  function initCustomRangeFromListV5() {
     try {
       const BOX_ID = "sf2CustomRangeCompareBox";
-      const ITEMS_WRAP_ID = "sf2CustomCompareToggleRowsV4";
+      const ITEMS_WRAP_ID = "sf2CustomCompareToggleRowsV5";
       const PERIODS_KEY = "sf2_custom_range_compare_v2";
       const VIS_KEY = "sf2_hidden_compare_boxes_v1";
       let isRendering = false;
@@ -4080,162 +4080,95 @@ window.addEventListener("DOMContentLoaded", () => {
         })}`;
       };
 
-      const normalizeDateStr = (raw) => {
-        if (!raw) return null;
-        if (typeof raw === "number" && raw > 1e9) {
-          const d = new Date(raw);
-          if (!Number.isNaN(d.getTime())) return toIso(d);
-        }
-        const s = String(raw).trim();
-        const isoMatch = s.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
-        if (isoMatch) {
-          return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, "0")}-${String(isoMatch[3]).padStart(2, "0")}`;
-        }
-        const months = {
-          jan: 0, january: 0, يناير: 0,
-          feb: 1, february: 1, فبراير: 1,
-          mar: 2, march: 2, مارس: 2,
-          apr: 3, april: 3, أبريل: 3, ابريل: 3,
-          may: 4, مايو: 4,
-          jun: 5, june: 5, يونيو: 5,
-          jul: 6, july: 6, يوليو: 6,
-          aug: 7, august: 7, أغسطس: 7, اغسطس: 7,
-          sep: 8, september: 8, سبتمبر: 8,
-          oct: 9, october: 9, أكتوبر: 9, اكتوبر: 9,
-          nov: 10, november: 10, نوفمبر: 10,
-          dec: 11, december: 11, ديسمبر: 11
-        };
-        const parts = s.toLowerCase().replace(/,/g, " ").split(/\s+/).filter(Boolean);
-        let year = null;
-        let monthIdx = null;
-        let day = null;
-        parts.forEach((p) => {
-          if (/^20\d{2}$/.test(p)) year = Number(p);
-          else if (p in months) monthIdx = months[p];
-          else if (/^\d{1,2}$/.test(p)) {
-            const n = Number(p);
-            if (n >= 1 && n <= 31 && day === null) day = n;
-          }
-        });
-        if (year !== null && monthIdx !== null && day !== null) {
-          return toIso(new Date(year, monthIdx, day));
-        }
-        const parsedTs = Date.parse(s);
-        if (!Number.isNaN(parsedTs) && /\d{4}/.test(s)) {
-          return toIso(new Date(parsedTs));
+      const extractIsoDate = (txt) => {
+        if (!txt) return null;
+        const m = String(txt).match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+        if (m) {
+          return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
         }
         return null;
       };
 
-      const getStateObj = () => {
-        try {
-          if (typeof window.state !== "undefined" && window.state && typeof window.state === "object") {
-            return window.state;
-          }
-        } catch (_) {}
-        try {
-          if (typeof state !== "undefined" && state && typeof state === "object") {
-            return state;
-          }
-        } catch (_) {}
-        return null;
+      const extractAmount = (txt) => {
+        if (!txt) return null;
+        const s = String(txt).trim();
+        // يبحث عن رقم عشري أو صحيح بمبلغ (يتجنب التواريخ بصيغة YYYY-MM-DD)
+        const withoutDates = s.replace(/\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}\b/g, " ");
+        const sarMatch = withoutDates.match(/(?:SAR\s*|R\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+        if (!sarMatch) return null;
+        const num = parseFloat(sarMatch[1].replace(/,/g, ""));
+        return Number.isFinite(num) && num > 0 ? num : null;
       };
 
-      const collectAllRecords = () => {
-        const records = [];
+      // قراءة الصفوف مباشرة من لستة / جدول المصروفات الظاهرة في الصفحة أولاً
+      const collectRowsFromExpensesList = () => {
+        const entries = [];
         const seen = new Set();
 
-        const pushRecord = (rawDate, rawAmt, isTopupHint) => {
-          const dIso = normalizeDateStr(rawDate);
-          if (!dIso) return;
-          const numeric = Number(String(rawAmt ?? 0).replace(/[^0-9.-]/g, ""));
-          if (!Number.isFinite(numeric) || numeric === 0) return;
-          if (isTopupHint && numeric > 0) return;
-          const amt = Math.abs(numeric);
-          const key = `${dIso}|${amt}`;
-          if (seen.has(key)) return;
-          seen.add(key);
-          records.push({ date: dIso, amount: amt });
-        };
+        const rows = Array.from(document.querySelectorAll("table tbody tr, tr, [data-expense-id], .expense-row, .expense-item"));
+        rows.forEach((row) => {
+          if (!row || (row.closest && row.closest("#" + BOX_ID))) return;
+          const fullText = (row.textContent || "").trim();
+          const dateIso = extractIsoDate(fullText);
+          if (!dateIso) return;
 
-        const scanArray = (arr, forceExpense) => {
-          if (!Array.isArray(arr)) return;
-          arr.forEach((item) => {
-            if (!item || typeof item !== "object") return;
-            const kind = String(item.type || item.kind || item.categoryType || "").toLowerCase();
-            const isTopup =
-              !forceExpense &&
-              (kind.includes("topup") ||
-                kind.includes("top-up") ||
-                kind.includes("deposit") ||
-                kind.includes("add") ||
-                kind.includes("saving") ||
-                kind.includes("loan"));
-            const dVal =
-              item.date || item.createdAt || item.timestamp || item.day || item.updatedAt || item.isoDate || "";
-            const aVal = item.amount ?? item.value ?? item.price ?? item.total ?? item.cost ?? 0;
-            pushRecord(dVal, aVal, isTopup);
-          });
-        };
-
-        const scanObj = (obj, depth) => {
-          if (!obj || typeof obj !== "object" || depth > 3) return;
-          Object.keys(obj).forEach((k) => {
-            const val = obj[k];
-            if (Array.isArray(val)) {
-              const lk = k.toLowerCase();
-              if (
-                lk.includes("expense") ||
-                lk.includes("spend") ||
-                lk.includes("transaction") ||
-                lk.includes("history") ||
-                lk.includes("activity") ||
-                lk.includes("item")
-              ) {
-                scanArray(val, lk.includes("expense") || lk.includes("spend"));
-              }
-            } else if (val && typeof val === "object") {
-              scanObj(val, depth + 1);
+          // نحاول استخراج المبلغ من خلايا الصف أو نص الصف
+          const cells = Array.from(row.querySelectorAll("td, th, span, div"));
+          let amt = null;
+          for (let i = cells.length - 1; i >= 0; i--) {
+            const cText = (cells[i].textContent || "").trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(cText)) continue;
+            const candidate = extractAmount(cText);
+            if (candidate !== null && candidate !== Number(dateIso.slice(0, 4))) {
+              amt = candidate;
+              break;
             }
-          });
-        };
+          }
+          if (amt === null) {
+            amt = extractAmount(fullText);
+          }
 
-        const st = getStateObj();
-        if (st) {
-          scanObj(st, 0);
+          if (amt !== null && amt > 0) {
+            const key = `${dateIso}|${amt.toFixed(2)}|${fullText.slice(0, 40)}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              entries.push({ date: dateIso, amount: amt });
+            }
+          }
+        });
+
+        // احتياطي: إذا لم تكن الصفوف في DOM حالياً، نقرأ من state.expenses إن وُجدت
+        if (entries.length === 0) {
+          try {
+            const st = typeof window.state !== "undefined" ? window.state : typeof state !== "undefined" ? state : null;
+            if (st && Array.isArray(st.expenses)) {
+              st.expenses.forEach((exp) => {
+                if (!exp) return;
+                const dIso = extractIsoDate(exp.date || exp.createdAt || "");
+                const amt = Math.abs(Number(exp.amount ?? exp.value ?? 0));
+                if (dIso && Number.isFinite(amt) && amt > 0) {
+                  entries.push({ date: dIso, amount: amt });
+                }
+              });
+            }
+          } catch (_) {}
         }
 
-        try {
-          Object.keys(localStorage || {}).forEach((k) => {
-            if (k === PERIODS_KEY || k === VIS_KEY) return;
-            const raw = localStorage.getItem(k);
-            if (!raw || raw.length > 250000) return;
-            if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
-              try {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) scanArray(parsed, false);
-                else scanObj(parsed, 0);
-              } catch (_) {}
-            }
-          });
-        } catch (_) {}
-
-        return records;
+        return entries;
       };
 
-      const sumExpensesBetween = (fromIso, toIso) => {
+      const sumListBetween = (fromIso, toIso) => {
         if (!fromIso || !toIso) return 0;
         const start = fromIso <= toIso ? fromIso : toIso;
         const end = fromIso <= toIso ? toIso : fromIso;
-
-        const records = collectAllRecords();
-        let total = 0;
-        records.forEach((r) => {
-          if (r.date >= start && r.date <= end) {
-            total += r.amount;
+        const list = collectRowsFromExpensesList();
+        let sum = 0;
+        list.forEach((item) => {
+          if (item.date >= start && item.date <= end) {
+            sum += item.amount;
           }
         });
-        return Number(total.toFixed(2));
+        return Number(sum.toFixed(2));
       };
 
       const findCompareCards = () => {
@@ -4293,8 +4226,8 @@ window.addEventListener("DOMContentLoaded", () => {
         const isEn = lang === "en";
         const periods = readPeriods();
 
-        const valA = sumExpensesBetween(periods.aFrom, periods.aTo);
-        const valB = sumExpensesBetween(periods.bFrom, periods.bTo);
+        const valA = sumListBetween(periods.aFrom, periods.aTo);
+        const valB = sumListBetween(periods.bFrom, periods.bTo);
         const diff = Number((valB - valA).toFixed(2));
         const pctText =
           valA > 0
@@ -4322,8 +4255,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 isEn ? "Period A" : "الفترة الأولى"
               }</div>
               <div style="display:grid;gap:6px;margin-bottom:10px;">
-                <input id="sf2CmpAFromV4" type="date" value="${periods.aFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
-                <input id="sf2CmpAToV4" type="date" value="${periods.aTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpAFromV5" type="date" value="${periods.aFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpAToV5" type="date" value="${periods.aTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
               </div>
               <div style="font-size:15px;font-weight:800;white-space:nowrap;">${formatSar(valA)}</div>
             </div>
@@ -4333,8 +4266,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 isEn ? "Period B" : "الفترة الثانية"
               }</div>
               <div style="display:grid;gap:6px;margin-bottom:10px;">
-                <input id="sf2CmpBFromV4" type="date" value="${periods.bFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
-                <input id="sf2CmpBToV4" type="date" value="${periods.bTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpBFromV5" type="date" value="${periods.bFrom}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
+                <input id="sf2CmpBToV5" type="date" value="${periods.bTo}" style="width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11.5px;font-weight:600;" />
               </div>
               <div style="font-size:15px;font-weight:800;white-space:nowrap;">${formatSar(valB)}</div>
             </div>
@@ -4342,7 +4275,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--text-secondary,#6b584e);direction:ltr;text-align:left;">
             <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">SAR (${periods.aFrom} ${arrow} ${periods.aTo}) • (${periods.bFrom} ${arrow} ${periods.bTo}) ${diffAbsStr}${diffSign}</span>
-            <button id="sf2CmpResetV4" type="button" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;flex-shrink:0;">${
+            <button id="sf2CmpResetV5" type="button" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;flex-shrink:0;">${
               isEn ? "Reset" : "إعادة"
             }</button>
           </div>
@@ -4350,20 +4283,20 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const bindChange = () => {
           writePeriods({
-            aFrom: (document.getElementById("sf2CmpAFromV4") || {}).value || periods.aFrom,
-            aTo: (document.getElementById("sf2CmpAToV4") || {}).value || periods.aTo,
-            bFrom: (document.getElementById("sf2CmpBFromV4") || {}).value || periods.bFrom,
-            bTo: (document.getElementById("sf2CmpBToV4") || {}).value || periods.bTo
+            aFrom: (document.getElementById("sf2CmpAFromV5") || {}).value || periods.aFrom,
+            aTo: (document.getElementById("sf2CmpAToV5") || {}).value || periods.aTo,
+            bFrom: (document.getElementById("sf2CmpBFromV5") || {}).value || periods.bFrom,
+            bTo: (document.getElementById("sf2CmpBToV5") || {}).value || periods.bTo
           });
           syncAll();
         };
 
-        ["sf2CmpAFromV4", "sf2CmpAToV4", "sf2CmpBFromV4", "sf2CmpBToV4"].forEach((id) => {
+        ["sf2CmpAFromV5", "sf2CmpAToV5", "sf2CmpBFromV5", "sf2CmpBToV5"].forEach((id) => {
           const inp = document.getElementById(id);
           if (inp) inp.addEventListener("change", bindChange);
         });
 
-        const resetBtn = document.getElementById("sf2CmpResetV4");
+        const resetBtn = document.getElementById("sf2CmpResetV5");
         if (resetBtn) {
           resetBtn.addEventListener("click", (e) => {
             e.preventDefault();
@@ -4491,13 +4424,13 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       syncAll();
-      setTimeout(syncAll, 250);
-      setTimeout(syncAll, 800);
+      setTimeout(syncAll, 300);
+      setTimeout(syncAll, 900);
 
       if (typeof MutationObserver !== "undefined") {
         const obs = new MutationObserver(() => {
           if (!isRendering) {
-            setTimeout(syncAll, 40);
+            setTimeout(syncAll, 50);
           }
         });
         obs.observe(document.body, { childList: true, subtree: true });
@@ -4511,14 +4444,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Custom range & customize modal v4 guard:", err);
+      if (window.console && console.warn) console.warn("Custom range from list v5 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initCustomRangeAndCustomizeModalV4);
+    document.addEventListener("DOMContentLoaded", initCustomRangeFromListV5);
   } else {
-    initCustomRangeAndCustomizeModalV4();
+    initCustomRangeFromListV5();
   }
 })();
 </script>
