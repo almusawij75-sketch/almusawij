@@ -2063,6 +2063,15 @@ table{width:100%;border-collapse:collapse;}th{background:#f1f5f9;padding:10px;te
     // Initial Boot
     loadLocal();
     renderAll();
+    window.__sf2App = {
+  getState: () => state,
+  setState: (patch) => {
+    state = { ...state, ...patch };
+    persistState();
+  },
+  persist: () => persistState(),
+  render: () => renderAll()
+};
     window.getSelectedReferenceDate = function () {
   const dateInput = document.querySelector('input[type="date"]');
   if (dateInput && dateInput.value) {
@@ -2087,13 +2096,49 @@ table{width:100%;border-collapse:collapse;}th{background:#f1f5f9;padding:10px;te
   return now;
 };
 
-window.parseTransactionDate = function (item) {
-  const raw = item?.date || item?.createdAt || item?.timestamp || item?.txDate;
-  if (!raw) return null;
-  if (raw?.toDate && typeof raw.toDate === "function") return raw.toDate();
-  const d = new Date(raw);
-  return isNaN(d) ? null : d;
+window.resetSelectedPeriodDeposits = function (period = "month") {
+  const refDate = window.getSelectedReferenceDate();
+  const periodLabels = {
+    day: `اليوم (${refDate.toISOString().slice(0, 10)})`,
+    month: `الشهر (${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, "0")})`,
+    year: `السنة (${refDate.getFullYear()})`
+  };
+
+  const label = periodLabels[period] || periodLabels.month;
+  const ok = confirm(`هل أنت متأكد من تصفير إيداعات ${label} فقط؟ لا يمكن التراجع عن هذا الإجراء.`);
+  if (!ok) return;
+
+  try {
+    const appApi = window.__sf2App;
+    const st = appApi && typeof appApi.getState === "function" ? appApi.getState() : null;
+    if (st && Array.isArray(st.walletHistory)) {
+      let removedSum = 0;
+      st.walletHistory = st.walletHistory.filter((item) => {
+        if (!item || Number(item.amount) <= 0) return true;
+        const txDate = window.parseTransactionDate(item);
+        const matched = txDate ? window.matchesPeriod(txDate, refDate, period) : false;
+        if (matched) {
+          removedSum += Number(item.amount) || 0;
+          return false;
+        }
+        return true;
+      });
+
+      if (removedSum > 0) {
+        st.walletTotalAdded = Math.max(0, (Number(st.walletTotalAdded) || 0) - removedSum);
+        st.walletBalance = (Number(st.walletBalance) || 0) - removedSum;
+      }
+      if (appApi && typeof appApi.persist === "function") {
+        appApi.persist();
+      }
+      return;
+    }
+  } catch (_) {}
+
+  if (typeof saveLocal === "function") saveLocal();
+  if (typeof renderAll === "function") renderAll();
 };
+
 
 window.matchesPeriod = function (txDate, refDate, period) {
   if (!txDate) return false;
