@@ -3984,5 +3984,376 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
+  <!-- Custom Comparison Week Dates v1 (Soft Compact Control + Bilingual AR/EN + Safe Isolation) -->
+<script>
+(function () {
+  function initCustomCompareWeekV1() {
+    try {
+      const CTRL_ID = "sf2CompareWeekControl";
+      const POPOVER_ID = "sf2CompareWeekPopover";
+      const STORAGE_KEY = "sf2_compare_week_v1";
+
+      const getLang = () => {
+        try {
+          if (typeof window.state !== "undefined" && window.state && (window.state.language === "en" || window.state.language === "ar")) {
+            return window.state.language;
+          }
+          if (typeof state !== "undefined" && state && (state.language === "en" || state.language === "ar")) {
+            return state.language;
+          }
+        } catch (_) {}
+        const langAttr = ((document.documentElement && document.documentElement.lang) || "").toLowerCase();
+        const dirAttr = ((document.documentElement && document.documentElement.dir) || "").toLowerCase();
+        return langAttr.indexOf("en") === 0 && dirAttr !== "rtl" ? "en" : "ar";
+      };
+
+      const parseNumeric = (txt) => {
+        if (!txt) return 0;
+        const cleaned = String(txt).replace(/[^0-9.-]/g, "");
+        const num = parseFloat(cleaned);
+        return Number.isFinite(num) ? num : 0;
+      };
+
+      const formatSar = (val) => {
+        const num = Number(val);
+        const safe = Number.isFinite(num) ? num : 0;
+        return `SAR ${safe.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`;
+      };
+
+      const readSavedDates = () => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.start && parsed.end && parsed.start <= parsed.end) {
+            return { start: String(parsed.start), end: String(parsed.end) };
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const writeSavedDates = (start, end) => {
+        try {
+          if (!start || !end) {
+            localStorage.removeItem(STORAGE_KEY);
+            return;
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ start, end }));
+        } catch (_) {}
+      };
+
+      const getStateObj = () => {
+        try {
+          if (typeof window.state !== "undefined" && window.state && typeof window.state === "object") {
+            return window.state;
+          }
+        } catch (_) {}
+        try {
+          if (typeof state !== "undefined" && state && typeof state === "object") {
+            return state;
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const getDefaultPrevious7Days = () => {
+        const now = new Date();
+        const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const startDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - 6);
+        const toIso = (d) =>
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return { start: toIso(startDate), end: toIso(endDate) };
+      };
+
+      const findWeekComparisonCard = () => {
+        const candidates = Array.from(document.querySelectorAll("div, section, article"));
+        return (
+          candidates.find((el) => {
+            const txt = (el.textContent || "");
+            const hasTitle = txt.includes("مقارنة أسبوع بأسبوع") || txt.toLowerCase().includes("week over week");
+            const hasSelectedWeek = txt.includes("الأسبوع المحدد") || txt.toLowerCase().includes("selected week");
+            return hasTitle && hasSelectedWeek && el.querySelectorAll("div").length >= 2;
+          }) || null
+        );
+      };
+
+      const computeRangeSpending = (startIso, endIso) => {
+        const st = getStateObj();
+        const items = [];
+
+        if (st) {
+          if (Array.isArray(st.expenses)) {
+            st.expenses.forEach((e) => items.push(e));
+          }
+          if (Array.isArray(st.transactions)) {
+            st.transactions.forEach((t) => {
+              if (!t) return;
+              const tp = String(t.type || "").toLowerCase();
+              if (tp.includes("expense") || tp.includes("spend") || Number(t.amount) < 0) {
+                items.push(t);
+              }
+            });
+          }
+        }
+
+        if (!items.length) return null;
+
+        let total = 0;
+        let matched = 0;
+        items.forEach((item) => {
+          if (!item) return;
+          const rawDate = item.date || item.createdAt || item.timestamp || "";
+          const dateStr = String(rawDate).slice(0, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+          if (dateStr >= startIso && dateStr <= endIso) {
+            const amt = Math.abs(Number(item.amount || item.value || 0));
+            if (Number.isFinite(amt)) {
+              total += amt;
+              matched += 1;
+            }
+          }
+        });
+
+        return matched > 0 || items.length > 0 ? Number(total.toFixed(2)) : null;
+      };
+
+      const applyCustomComparisonToCard = (card) => {
+        const saved = readSavedDates();
+        if (!saved || !card) return;
+
+        const allLeaves = Array.from(card.querySelectorAll("span, p, div, strong, b")).filter(
+          (el) => el.children.length === 0 && (el.textContent || "").trim().length > 0
+        );
+
+        const prevLabelEl = allLeaves.find((el) => {
+          const t = (el.textContent || "").trim();
+          return (
+            t.includes("7 أيام السابقة") ||
+            t.includes("الأسبوع المقارن") ||
+            t.toLowerCase().includes("previous 7 days") ||
+            t.toLowerCase().includes("compared week")
+          );
+        });
+
+        const selectedLabelEl = allLeaves.find((el) => {
+          const t = (el.textContent || "").trim();
+          return t.includes("الأسبوع المحدد") || t.toLowerCase().includes("selected week");
+        });
+
+        const findAmountNear = (labelEl) => {
+          if (!labelEl || !labelEl.parentElement) return null;
+          const box = labelEl.parentElement;
+          const numEls = Array.from(box.querySelectorAll("span, p, div, strong, b")).filter(
+            (el) => el.children.length === 0 && /sar|[0-9]/i.test(el.textContent || "") && el !== labelEl
+          );
+          return numEls[numEls.length - 1] || null;
+        };
+
+        const prevAmtEl = findAmountNear(prevLabelEl);
+        const selAmtEl = findAmountNear(selectedLabelEl);
+
+        const lang = getLang();
+        if (prevLabelEl) {
+          prevLabelEl.textContent =
+            lang === "en" ? `Compare (${saved.start} → ${saved.end})` : `مقارنة (${saved.start} ← ${saved.end})`;
+        }
+
+        const calculated = computeRangeSpending(saved.start, saved.end);
+        if (prevAmtEl && calculated !== null) {
+          prevAmtEl.textContent = formatSar(calculated);
+        }
+
+        if (prevAmtEl && selAmtEl) {
+          const prevVal = parseNumeric(prevAmtEl.textContent);
+          const selVal = parseNumeric(selAmtEl.textContent);
+          if (prevVal > 0) {
+            const pct = (((selVal - prevVal) / prevVal) * 100).toFixed(1);
+            const badge = Array.from(card.querySelectorAll("span, div")).find((el) => {
+              const t = (el.textContent || "").trim();
+              return /^[+-]?\d+(\.\d+)?%[-+]?$/.test(t);
+            });
+            if (badge) {
+              const absPct = Math.abs(parseFloat(pct)).toFixed(1);
+              badge.textContent = Number(pct) <= 0 ? `${absPct}%-` : `${absPct}%+`;
+            }
+          }
+        }
+      };
+
+      const ensurePopover = () => {
+        let pop = document.getElementById(POPOVER_ID);
+        if (pop) return pop;
+
+        pop = document.createElement("div");
+        pop.id = POPOVER_ID;
+        pop.style.cssText =
+          "position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);padding:16px;";
+        pop.innerHTML = `
+          <div style="background:var(--bg-card,#fffdfb);color:var(--text-primary,#2c221e);border:1px solid var(--border-color,#ead8cb);border-radius:18px;width:100%;max-width:340px;padding:16px;box-shadow:0 16px 34px rgba(0,0,0,0.15);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <h4 id="sf2CmpTitle" style="margin:0;font-size:14px;font-weight:800;"></h4>
+              <button type="button" id="sf2CmpResetDefault" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:11px;font-weight:700;cursor:pointer;padding:2px 6px;"></button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+              <div>
+                <label id="sf2CmpFromLabel" for="sf2CmpFromInput" style="display:block;font-size:11px;margin-bottom:4px;color:var(--text-secondary,#6b584e);"></label>
+                <input id="sf2CmpFromInput" type="date" style="width:100%;box-sizing:border-box;padding:8px 8px;border-radius:11px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-subtle,#fbf2eb);color:inherit;font-size:12px;font-weight:600;" />
+              </div>
+              <div>
+                <label id="sf2CmpToLabel" for="sf2CmpToInput" style="display:block;font-size:11px;margin-bottom:4px;color:var(--text-secondary,#6b584e);"></label>
+                <input id="sf2CmpToInput" type="date" style="width:100%;box-sizing:border-box;padding:8px 8px;border-radius:11px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-subtle,#fbf2eb);color:inherit;font-size:12px;font-weight:600;" />
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+              <button type="button" id="sf2CmpCancelBtn" style="padding:7px 12px;border-radius:10px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:var(--text-primary,#2c221e);font-size:12px;font-weight:700;cursor:pointer;"></button>
+              <button type="button" id="sf2CmpApplyBtn" style="padding:7px 14px;border-radius:10px;border:none;background:var(--accent,#c2410c);color:#ffffff;font-size:12px;font-weight:700;cursor:pointer;"></button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(pop);
+
+        const closePop = () => {
+          pop.style.display = "none";
+        };
+
+        pop.addEventListener("click", (e) => {
+          if (e.target === pop) closePop();
+        });
+        document.getElementById("sf2CmpCancelBtn").addEventListener("click", closePop);
+        document.getElementById("sf2CmpResetDefault").addEventListener("click", () => {
+          writeSavedDates(null, null);
+          closePop();
+          try {
+            if (typeof renderAll === "function") renderAll();
+          } catch (_) {}
+          setTimeout(mountControl, 80);
+        });
+        document.getElementById("sf2CmpApplyBtn").addEventListener("click", () => {
+          const fromVal = (document.getElementById("sf2CmpFromInput") || {}).value;
+          const toVal = (document.getElementById("sf2CmpToInput") || {}).value;
+          if (!fromVal || !toVal) return;
+          const start = fromVal <= toVal ? fromVal : toVal;
+          const end = fromVal <= toVal ? toVal : fromVal;
+          writeSavedDates(start, end);
+          closePop();
+          mountControl();
+        });
+
+        return pop;
+      };
+
+      const openPopover = () => {
+        const lang = getLang();
+        const pop = ensurePopover();
+        const defs = getDefaultPrevious7Days();
+        const saved = readSavedDates() || defs;
+
+        document.getElementById("sf2CmpTitle").textContent =
+          lang === "en" ? "Comparison Week Dates" : "تواريخ الأسبوع المقارن";
+        document.getElementById("sf2CmpResetDefault").textContent =
+          lang === "en" ? "Auto 7d" : "تلقائي 7 أيام";
+        document.getElementById("sf2CmpFromLabel").textContent =
+          lang === "en" ? "From" : "من تاريخ";
+        document.getElementById("sf2CmpToLabel").textContent =
+          lang === "en" ? "To" : "إلى تاريخ";
+        document.getElementById("sf2CmpCancelBtn").textContent =
+          lang === "en" ? "Cancel" : "إلغاء";
+        document.getElementById("sf2CmpApplyBtn").textContent =
+          lang === "en" ? "Apply" : "تطبيق";
+
+        document.getElementById("sf2CmpFromInput").value = saved.start;
+        document.getElementById("sf2CmpToInput").value = saved.end;
+
+        pop.style.display = "flex";
+      };
+
+      const mountControl = () => {
+        const card = findWeekComparisonCard();
+        if (!card) return;
+
+        const lang = getLang();
+        const saved = readSavedDates();
+        const chipText = saved
+          ? lang === "en"
+            ? `${saved.start.slice(5)} → ${saved.end.slice(5)}`
+            : `${saved.start.slice(5)} ← ${saved.end.slice(5)}`
+          : lang === "en"
+          ? "Compare dates"
+          : "تحديد الفترة";
+
+        let ctrl = document.getElementById(CTRL_ID);
+        if (!ctrl) {
+          ctrl = document.createElement("button");
+          ctrl.id = CTRL_ID;
+          ctrl.type = "button";
+          ctrl.style.cssText =
+            "display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;border:1px solid var(--border-color,#e5cfc0);background:var(--bg-subtle,#fbf2eb);color:var(--text-secondary,#6b584e);font-size:10.5px;font-weight:700;cursor:pointer;line-height:1.2;transition:all 0.15s ease;";
+          ctrl.innerHTML = `
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="18" rx="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="sf2CompareWeekChipText"></span>
+          `;
+          ctrl.addEventListener("mouseenter", () => {
+            ctrl.style.borderColor = "var(--accent,#c2410c)";
+            ctrl.style.color = "var(--accent,#c2410c)";
+          });
+          ctrl.addEventListener("mouseleave", () => {
+            ctrl.style.borderColor = "var(--border-color,#e5cfc0)";
+            ctrl.style.color = "var(--text-secondary,#6b584e)";
+          });
+          ctrl.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openPopover();
+          });
+
+          const headerRow = card.firstElementChild;
+          if (headerRow) {
+            headerRow.style.display = "flex";
+            headerRow.style.alignItems = "center";
+            headerRow.style.justifyContent = "space-between";
+            headerRow.style.gap = "8px";
+            headerRow.appendChild(ctrl);
+          } else {
+            card.insertBefore(ctrl, card.firstChild);
+          }
+        }
+
+        const txtEl = document.getElementById("sf2CompareWeekChipText");
+        if (txtEl) txtEl.textContent = chipText;
+
+        applyCustomComparisonToCard(card);
+      };
+
+      mountControl();
+      setTimeout(mountControl, 300);
+      setTimeout(mountControl, 900);
+
+      const langBtn = document.getElementById("langToggleBtn");
+      if (langBtn) {
+        langBtn.addEventListener("click", () => {
+          setTimeout(mountControl, 90);
+          setTimeout(mountControl, 320);
+        });
+      }
+    } catch (err) {
+      if (window.console && console.warn) console.warn("Custom compare week v1 guard:", err);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initCustomCompareWeekV1);
+  } else {
+    initCustomCompareWeekV1();
+  }
+})();
+</script>
 </body>
 </html>
