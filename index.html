@@ -4448,10 +4448,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Sync Top Current Wallet Card With Wallet Summary v9 (Bilingual AR/EN + Safe Isolation) -->
+  <!-- Sync Top Current Wallet Card v10 (Direct State + Wallet Summary Fallback + Bilingual AR/EN + Safe Isolation) -->
 <script>
 (function () {
-  function initSyncWalletBalanceV9() {
+  function initSyncWalletBalanceV10() {
     try {
       let isSyncing = false;
 
@@ -4471,7 +4471,98 @@ window.addEventListener("DOMContentLoaded", () => {
         })}`;
       };
 
+      const getStateObj = () => {
+        try {
+          if (typeof window.state !== "undefined" && window.state && typeof window.state === "object") {
+            return window.state;
+          }
+        } catch (_) {}
+        try {
+          if (typeof state !== "undefined" && state && typeof state === "object") {
+            return state;
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const computeCurrentWalletFromState = () => {
+        const st = getStateObj();
+        if (!st) return null;
+
+        try {
+          if (localStorage.getItem("sf2_account_reset_v6") === "1") {
+            return 0;
+          }
+        } catch (_) {}
+
+        let topupsTotal = 0;
+        let manualTopupsActive = false;
+        try {
+          const rawOverride = localStorage.getItem("sf2_manual_topups_override_v7");
+          if (rawOverride !== null && rawOverride !== "") {
+            const parsedNum = Number(rawOverride);
+            if (Number.isFinite(parsedNum) && parsedNum >= 0) {
+              topupsTotal = parsedNum;
+              manualTopupsActive = true;
+            }
+          }
+        } catch (_) {}
+
+        if (!manualTopupsActive) {
+          if (Array.isArray(st.topups)) {
+            st.topups.forEach((t) => {
+              const amt = Number(t && (t.amount ?? t.value ?? 0));
+              if (Number.isFinite(amt)) topupsTotal += amt;
+            });
+          } else if (Array.isArray(st.walletTransactions)) {
+            st.walletTransactions.forEach((t) => {
+              if (!t) return;
+              const tp = String(t.type || "").toLowerCase();
+              if (tp.includes("topup") || tp.includes("top-up") || tp.includes("deposit")) {
+                const amt = Number(t.amount ?? t.value ?? 0);
+                if (Number.isFinite(amt)) topupsTotal += amt;
+              }
+            });
+          } else if (typeof st.totalTopups === "number") {
+            topupsTotal = st.totalTopups;
+          }
+        }
+
+        let expensesTotal = 0;
+        if (Array.isArray(st.expenses)) {
+          st.expenses.forEach((e) => {
+            const amt = Math.abs(Number(e && (e.amount ?? e.value ?? 0)));
+            if (Number.isFinite(amt)) expensesTotal += amt;
+          });
+        } else if (typeof st.totalExpenses === "number") {
+          expensesTotal = Math.abs(st.totalExpenses);
+        }
+
+        let savingsTotal = 0;
+        if (typeof st.savings === "number") {
+          savingsTotal = Math.abs(st.savings);
+        } else if (Array.isArray(st.savings)) {
+          st.savings.forEach((s) => {
+            const amt = Number(s && (s.amount ?? s.value ?? 0));
+            if (Number.isFinite(amt)) savingsTotal += amt;
+          });
+        } else if (typeof st.totalSavings === "number") {
+          savingsTotal = Math.abs(st.totalSavings);
+        }
+
+        if (topupsTotal > 0 || expensesTotal > 0 || savingsTotal > 0 || manualTopupsActive) {
+          return Number((topupsTotal - expensesTotal - savingsTotal).toFixed(2));
+        }
+
+        return null;
+      };
+
       const getSummaryCurrentWalletText = () => {
+        const fromState = computeCurrentWalletFromState();
+        if (fromState !== null) {
+          return formatSar(fromState);
+        }
+
         const all = Array.from(document.querySelectorAll("div, section, article"));
         const summaryCard = all.find((el) => {
           const t = el.textContent || "";
@@ -4504,12 +4595,6 @@ window.addEventListener("DOMContentLoaded", () => {
             }
             curr = curr.parentElement;
           }
-        }
-
-        const sarNodes = leaves.filter((el) => /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test((el.textContent || "").trim()));
-        if (sarNodes.length > 0) {
-          const lastNum = extractSarValue(sarNodes[sarNodes.length - 1].textContent);
-          if (lastNum !== null) return formatSar(lastNum);
         }
 
         return null;
@@ -4567,14 +4652,14 @@ window.addEventListener("DOMContentLoaded", () => {
         obs.observe(document.body, { childList: true, subtree: true });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Sync wallet balance v9 guard:", err);
+      if (window.console && console.warn) console.warn("Sync wallet balance v10 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV9);
+    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV10);
   } else {
-    initSyncWalletBalanceV9();
+    initSyncWalletBalanceV10();
   }
 })();
 </script>
