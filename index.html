@@ -3984,5 +3984,449 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
+  <!-- Custom Range Comparison Box + Native Dashboard Customize Modal Integration v3 (Bilingual AR/EN + Safe Isolation) -->
+<script>
+(function () {
+  function initCustomRangeAndCustomizeModalV3() {
+    try {
+      const BOX_ID = "sf2CustomRangeCompareBox";
+      const ITEMS_WRAP_ID = "sf2CustomCompareToggleRowsV3";
+      const PERIODS_KEY = "sf2_custom_range_compare_v2";
+      const VIS_KEY = "sf2_hidden_compare_boxes_v1";
+      let isRendering = false;
+
+      const getLang = () => {
+        try {
+          if (typeof window.state !== "undefined" && window.state && (window.state.language === "en" || window.state.language === "ar")) {
+            return window.state.language;
+          }
+          if (typeof state !== "undefined" && state && (state.language === "en" || state.language === "ar")) {
+            return state.language;
+          }
+        } catch (_) {}
+        const langAttr = ((document.documentElement && document.documentElement.lang) || "").toLowerCase();
+        const dirAttr = ((document.documentElement && document.documentElement.dir) || "").toLowerCase();
+        return langAttr.indexOf("en") === 0 && dirAttr !== "rtl" ? "en" : "ar";
+      };
+
+      const toIso = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      const getDefaultPeriods = () => {
+        const now = new Date();
+        const p2End = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const p2Start = new Date(p2End.getFullYear(), p2End.getMonth(), p2End.getDate() - 6);
+        const p1End = new Date(p2Start.getFullYear(), p2Start.getMonth(), p2Start.getDate() - 1);
+        const p1Start = new Date(p1End.getFullYear(), p1End.getMonth(), p1End.getDate() - 6);
+        return {
+          aFrom: toIso(p1Start),
+          aTo: toIso(p1End),
+          bFrom: toIso(p2Start),
+          bTo: toIso(p2End)
+        };
+      };
+
+      const readPeriods = () => {
+        const defs = getDefaultPeriods();
+        try {
+          const raw = localStorage.getItem(PERIODS_KEY);
+          if (!raw) return defs;
+          const p = JSON.parse(raw);
+          if (p && p.aFrom && p.aTo && p.bFrom && p.bTo) {
+            return {
+              aFrom: String(p.aFrom),
+              aTo: String(p.aTo),
+              bFrom: String(p.bFrom),
+              bTo: String(p.bTo)
+            };
+          }
+        } catch (_) {}
+        return defs;
+      };
+
+      const writePeriods = (p) => {
+        try {
+          localStorage.setItem(PERIODS_KEY, JSON.stringify(p));
+        } catch (_) {}
+      };
+
+      const readHiddenMap = () => {
+        try {
+          const raw = localStorage.getItem(VIS_KEY);
+          if (!raw) return { week: false, month: false, custom: false };
+          const obj = JSON.parse(raw);
+          return {
+            week: Boolean(obj && obj.week),
+            month: Boolean(obj && obj.month),
+            custom: Boolean(obj && obj.custom)
+          };
+        } catch (_) {
+          return { week: false, month: false, custom: false };
+        }
+      };
+
+      const writeHiddenMap = (map) => {
+        try {
+          localStorage.setItem(VIS_KEY, JSON.stringify(map));
+        } catch (_) {}
+      };
+
+      const formatSar = (val) => {
+        const num = Number(val);
+        const safe = Number.isFinite(num) ? num : 0;
+        return `SAR ${safe.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`;
+      };
+
+      const normalizeDateStr = (raw) => {
+        if (!raw) return null;
+        const s = String(raw).trim();
+        const m = s.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+        if (m) {
+          return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
+        }
+        return null;
+      };
+
+      const getStateObj = () => {
+        try {
+          if (typeof window.state !== "undefined" && window.state && typeof window.state === "object") {
+            return window.state;
+          }
+        } catch (_) {}
+        try {
+          if (typeof state !== "undefined" && state && typeof state === "object") {
+            return state;
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const sumExpensesBetween = (fromIso, toIso) => {
+        if (!fromIso || !toIso) return 0;
+        const start = fromIso <= toIso ? fromIso : toIso;
+        const end = fromIso <= toIso ? toIso : fromIso;
+
+        const st = getStateObj();
+        const items = [];
+        const collect = (arr) => {
+          if (!Array.isArray(arr)) return;
+          arr.forEach((item) => {
+            if (!item || typeof item !== "object") return;
+            const dIso = normalizeDateStr(item.date || item.createdAt || item.timestamp || item.day || "");
+            const rawAmt = item.amount ?? item.value ?? item.price ?? item.total ?? 0;
+            const amt = Math.abs(Number(rawAmt));
+            if (dIso && Number.isFinite(amt) && amt > 0) {
+              items.push({ date: dIso, amount: amt });
+            }
+          });
+        };
+
+        if (st) {
+          collect(st.expenses);
+          collect(st.transactions);
+          if (st.data && typeof st.data === "object") {
+            collect(st.data.expenses);
+            collect(st.data.transactions);
+          }
+        }
+
+        let total = 0;
+        items.forEach((it) => {
+          if (it.date >= start && it.date <= end) {
+            total += it.amount;
+          }
+        });
+        return Number(total.toFixed(2));
+      };
+
+      const findCompareCards = () => {
+        const all = Array.from(document.querySelectorAll("div, section, article"));
+        const weekCard =
+          all.find((el) => {
+            if (el.id === BOX_ID) return false;
+            const t = el.textContent || "";
+            return (
+              (t.includes("مقارنة أسبوع بأسبوع") || t.toLowerCase().includes("week over week")) &&
+              (t.includes("الأسبوع المحدد") || t.toLowerCase().includes("selected week")) &&
+              t.length < 1100
+            );
+          }) || null;
+
+        const monthCard =
+          all.find((el) => {
+            if (el.id === BOX_ID) return false;
+            const t = el.textContent || "";
+            return (
+              (t.includes("مقارنة شهر بشهر") || t.toLowerCase().includes("month over month")) &&
+              (t.includes("الشهر المحدد") || t.toLowerCase().includes("selected month")) &&
+              t.length < 1100
+            );
+          }) || null;
+
+        return { weekCard, monthCard };
+      };
+
+      const findAnchorForCustomBox = (monthCard) => {
+        if (monthCard && monthCard.parentElement) {
+          return { parent: monthCard.parentElement, afterNode: monthCard.nextSibling };
+        }
+        const walletTab = document.getElementById("tab-wallet");
+        if (walletTab) return { parent: walletTab, afterNode: null };
+        return null;
+      };
+
+      const renderCustomBox = (monthCard, hiddenMap) => {
+        let box = document.getElementById(BOX_ID);
+        if (!box) {
+          const anchor = findAnchorForCustomBox(monthCard);
+          if (!anchor || !anchor.parent) return null;
+          box = document.createElement("div");
+          box.id = BOX_ID;
+          box.style.cssText =
+            "background:var(--bg-card,#fffdfb);color:var(--text-primary,#2c221e);border:1px solid var(--border-color,#ead8cb);border-radius:20px;padding:16px;margin-top:12px;box-shadow:0 4px 16px rgba(0,0,0,0.03);";
+          anchor.parent.insertBefore(box, anchor.afterNode);
+        }
+
+        box.style.display = hiddenMap.custom ? "none" : "";
+        if (hiddenMap.custom) return box;
+
+        const lang = getLang();
+        const isEn = lang === "en";
+        const periods = readPeriods();
+
+        const valA = sumExpensesBetween(periods.aFrom, periods.aTo);
+        const valB = sumExpensesBetween(periods.bFrom, periods.bTo);
+        const diff = Number((valB - valA).toFixed(2));
+        const pctText =
+          valA > 0
+            ? `${Math.abs(((valB - valA) / valA) * 100).toFixed(1)}%${diff <= 0 ? "-" : "+"}`
+            : "0.0%";
+
+        const diffFormatted = `${Math.abs(diff).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })} SAR ${diff < 0 ? "-" : "+"}`;
+
+        const arrow = isEn ? "→" : "←";
+
+        box.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;">
+            <span style="font-size:15px;font-weight:800;">${
+              isEn ? "Custom Date Comparison" : "مقارنة فترات مخصصة"
+            }</span>
+            <span style="font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--bg-subtle,#fbf2eb);color:${
+              diff <= 0 ? "#15803d" : "var(--accent,#c2410c)"
+            };border:1px solid var(--border-color,#ead8cb);">${pctText}</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div style="background:var(--bg-subtle,#fbf2eb);border:1px solid var(--border-color,#ead8cb);border-radius:14px;padding:10px;">
+              <div style="font-size:11px;font-weight:700;color:var(--text-secondary,#6b584e);margin-bottom:6px;">${
+                isEn ? "Period A" : "الفترة الأولى"
+              }</div>
+              <div style="display:grid;gap:6px;margin-bottom:8px;">
+                <input id="sf2CmpAFromV3" type="date" value="${periods.aFrom}" style="width:100%;box-sizing:border-box;padding:5px 6px;border-radius:8px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11px;font-weight:600;" />
+                <input id="sf2CmpAToV3" type="date" value="${periods.aTo}" style="width:100%;box-sizing:border-box;padding:5px 6px;border-radius:8px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11px;font-weight:600;" />
+              </div>
+              <div style="font-size:13px;font-weight:800;">${formatSar(valA)}</div>
+            </div>
+
+            <div style="background:var(--bg-subtle,#fbf2eb);border:1px solid var(--border-color,#ead8cb);border-radius:14px;padding:10px;">
+              <div style="font-size:11px;font-weight:700;color:var(--text-secondary,#6b584e);margin-bottom:6px;">${
+                isEn ? "Period B" : "الفترة الثانية"
+              }</div>
+              <div style="display:grid;gap:6px;margin-bottom:8px;">
+                <input id="sf2CmpBFromV3" type="date" value="${periods.bFrom}" style="width:100%;box-sizing:border-box;padding:5px 6px;border-radius:8px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11px;font-weight:600;" />
+                <input id="sf2CmpBToV3" type="date" value="${periods.bTo}" style="width:100%;box-sizing:border-box;padding:5px 6px;border-radius:8px;border:1px solid var(--border-color,#e2cbb9);background:var(--bg-card,#fffdfb);color:inherit;font-size:11px;font-weight:600;" />
+              </div>
+              <div style="font-size:13px;font-weight:800;">${formatSar(valB)}</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--text-secondary,#6b584e);">
+            <span>(${periods.aFrom} ${arrow} ${periods.aTo}) vs (${periods.bFrom} ${arrow} ${periods.bTo}) • <strong>${diffFormatted}</strong></span>
+            <button id="sf2CmpResetV3" type="button" style="border:none;background:transparent;color:var(--accent,#c2410c);font-size:11px;font-weight:700;cursor:pointer;padding:2px 4px;flex-shrink:0;">${
+              isEn ? "Reset" : "إعادة"
+            }</button>
+          </div>
+        `;
+
+        const bindChange = () => {
+          writePeriods({
+            aFrom: (document.getElementById("sf2CmpAFromV3") || {}).value || periods.aFrom,
+            aTo: (document.getElementById("sf2CmpAToV3") || {}).value || periods.aTo,
+            bFrom: (document.getElementById("sf2CmpBFromV3") || {}).value || periods.bFrom,
+            bTo: (document.getElementById("sf2CmpBToV3") || {}).value || periods.bTo
+          });
+          syncAll();
+        };
+
+        ["sf2CmpAFromV3", "sf2CmpAToV3", "sf2CmpBFromV3", "sf2CmpBToV3"].forEach((id) => {
+          const inp = document.getElementById(id);
+          if (inp) inp.addEventListener("change", bindChange);
+        });
+
+        const resetBtn = document.getElementById("sf2CmpResetV3");
+        if (resetBtn) {
+          resetBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            writePeriods(getDefaultPeriods());
+            syncAll();
+          });
+        }
+
+        return box;
+      };
+
+      const findCustomizeModalContainer = () => {
+        const all = Array.from(document.querySelectorAll("div, section, dialog"));
+        const heading = all.find((el) => {
+          const t = (el.textContent || "").trim();
+          return (
+            (t.includes("تخصيص عناصر لوحة التحكم") || t.toLowerCase().includes("customize dashboard")) &&
+            t.length < 120
+          );
+        });
+        if (!heading) return null;
+
+        let curr = heading.parentElement;
+        for (let i = 0; i < 4 && curr; i++) {
+          const rows = Array.from(curr.querySelectorAll("div, button, label")).filter((n) => {
+            const txt = (n.textContent || "").trim();
+            return (
+              txt.includes("شريط تصدير التقارير") ||
+              txt.includes("الرسوم البيانية التحليلية") ||
+              txt.toLowerCase().includes("export") ||
+              txt.toLowerCase().includes("chart")
+            );
+          });
+          if (rows.length > 0) {
+            const lastRow = rows[rows.length - 1];
+            const rowParent = lastRow.parentElement || curr;
+            return { rowParent, afterNode: lastRow.nextSibling, sampleRow: lastRow };
+          }
+          curr = curr.parentElement;
+        }
+        return null;
+      };
+
+      const injectThreeBoxesIntoCustomizeModal = () => {
+        const target = findCustomizeModalContainer();
+        if (!target || !target.rowParent) return;
+
+        const lang = getLang();
+        const isEn = lang === "en";
+        const hiddenMap = readHiddenMap();
+
+        let wrap = document.getElementById(ITEMS_WRAP_ID);
+        if (!wrap) {
+          wrap = document.createElement("div");
+          wrap.id = ITEMS_WRAP_ID;
+          wrap.style.cssText = "display:grid;gap:8px;margin-top:8px;";
+          target.rowParent.insertBefore(wrap, target.afterNode);
+        }
+
+        const items = [
+          {
+            key: "week",
+            label: isEn ? "Week-over-Week Box" : "مقارنة أسبوع بأسبوع"
+          },
+          {
+            key: "month",
+            label: isEn ? "Month-over-Month Box" : "مقارنة شهر بشهر"
+          },
+          {
+            key: "custom",
+            label: isEn ? "Custom Date Comparison" : "مقارنة فترات مخصصة"
+          }
+        ];
+
+        wrap.innerHTML = items
+          .map((it) => {
+            const checked = !hiddenMap[it.key];
+            return `
+              <button type="button" data-sf2-toggle-box="${it.key}" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border-color,#ead8cb);background:var(--bg-subtle,#fbf2eb);color:var(--text-primary,#2c221e);font-size:13px;font-weight:700;cursor:pointer;text-align:start;">
+                <span>${it.label}</span>
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:${
+                  checked ? "#2563eb" : "transparent"
+                };border:1.5px solid ${
+                  checked ? "#2563eb" : "var(--border-color,#cbb4a3)"
+                };color:#ffffff;font-size:12px;font-weight:800;flex-shrink:0;">${checked ? "✓" : ""}</span>
+              </button>
+            `;
+          })
+          .join("");
+
+        wrap.querySelectorAll("button[data-sf2-toggle-box]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const key = btn.getAttribute("data-sf2-toggle-box");
+            const next = readHiddenMap();
+            next[key] = !next[key];
+            writeHiddenMap(next);
+            syncAll();
+          });
+        });
+      };
+
+      const syncAll = () => {
+        if (isRendering) return;
+        isRendering = true;
+        try {
+          const hiddenMap = readHiddenMap();
+          const { weekCard, monthCard } = findCompareCards();
+
+          if (weekCard) {
+            weekCard.style.display = hiddenMap.week ? "none" : "";
+          }
+          if (monthCard) {
+            monthCard.style.display = hiddenMap.month ? "none" : "";
+          }
+
+          renderCustomBox(monthCard, hiddenMap);
+          injectThreeBoxesIntoCustomizeModal();
+        } finally {
+          setTimeout(() => {
+            isRendering = false;
+          }, 0);
+        }
+      };
+
+      syncAll();
+      setTimeout(syncAll, 250);
+      setTimeout(syncAll, 800);
+
+      if (typeof MutationObserver !== "undefined") {
+        const obs = new MutationObserver(() => {
+          if (!isRendering) {
+            setTimeout(syncAll, 40);
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+      }
+
+      const langBtn = document.getElementById("langToggleBtn");
+      if (langBtn) {
+        langBtn.addEventListener("click", () => {
+          setTimeout(syncAll, 90);
+          setTimeout(syncAll, 320);
+        });
+      }
+    } catch (err) {
+      if (window.console && console.warn) console.warn("Custom range & customize modal v3 guard:", err);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initCustomRangeAndCustomizeModalV3);
+  } else {
+    initCustomRangeAndCustomizeModalV3();
+  }
+})();
+</script>
 </body>
 </html>
