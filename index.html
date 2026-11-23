@@ -4448,5 +4448,118 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
+  <!-- Sync Top Current Wallet Card With Wallet Summary v8 (Bilingual AR/EN + Safe Isolation) -->
+<script>
+(function () {
+  function initSyncWalletBalanceV8() {
+    try {
+      let isSyncing = false;
+
+      const extractSarValue = (text) => {
+        if (!text) return null;
+        const m = String(text).match(/SAR\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+        if (!m) return null;
+        const num = parseFloat(m[1].replace(/,/g, ""));
+        return Number.isFinite(num) ? num : null;
+      };
+
+      const formatSar = (num) => {
+        const safe = Number.isFinite(num) ? num : 0;
+        return `SAR ${safe.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`;
+      };
+
+      const getSummaryCurrentWalletText = () => {
+        const all = Array.from(document.querySelectorAll("div, section, article"));
+        const summaryCard = all.find((el) => {
+          const t = el.textContent || "";
+          return (
+            (t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary")) &&
+            (t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet")) &&
+            t.length < 1200
+          );
+        });
+        if (!summaryCard) return null;
+
+        const leaves = Array.from(summaryCard.querySelectorAll("span, p, div, strong, b")).filter(
+          (el) => el.children.length === 0 && (el.textContent || "").trim().length > 0
+        );
+        const labelEl = leaves.find((el) => {
+          const t = (el.textContent || "").trim();
+          return t === "المحفظة الحالية" || t.toLowerCase() === "current wallet";
+        });
+        if (!labelEl || !labelEl.parentElement) return null;
+
+        const row = labelEl.parentElement;
+        const valEl = Array.from(row.querySelectorAll("span, p, div, strong, b")).find(
+          (el) => el.children.length === 0 && el !== labelEl && /SAR/i.test(el.textContent || "")
+        );
+        if (!valEl) return null;
+
+        const num = extractSarValue(valEl.textContent);
+        return num !== null ? formatSar(num) : null;
+      };
+
+      const syncTopCurrentWalletCard = () => {
+        if (isSyncing) return;
+        isSyncing = true;
+        try {
+          const targetText = getSummaryCurrentWalletText();
+          if (!targetText) return;
+
+          const all = Array.from(document.querySelectorAll("div, section, article"));
+          const topCard = all.find((el) => {
+            const t = el.textContent || "";
+            const isSummary = t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary");
+            const hasTitle = t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet");
+            const hasSub = t.includes("الرصيد المتاح حالياً") || t.toLowerCase().includes("available balance");
+            return !isSummary && hasTitle && hasSub && t.length < 700;
+          });
+          if (!topCard) return;
+
+          const leaves = Array.from(topCard.querySelectorAll("span, p, div, strong, b")).filter(
+            (el) => el.children.length === 0 && /SAR\s*[0-9]/i.test(el.textContent || "")
+          );
+          const amountEl = leaves.find((el) => {
+            const t = (el.textContent || "").trim();
+            return /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test(t);
+          });
+
+          if (amountEl && amountEl.textContent.trim() !== targetText) {
+            amountEl.textContent = targetText;
+          }
+        } finally {
+          setTimeout(() => {
+            isSyncing = false;
+          }, 0);
+        }
+      };
+
+      syncTopCurrentWalletCard();
+      setTimeout(syncTopCurrentWalletCard, 250);
+      setTimeout(syncTopCurrentWalletCard, 800);
+
+      if (typeof MutationObserver !== "undefined") {
+        const obs = new MutationObserver(() => {
+          if (!isSyncing) {
+            setTimeout(syncTopCurrentWalletCard, 40);
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+      }
+    } catch (err) {
+      if (window.console && console.warn) console.warn("Sync wallet balance v8 guard:", err);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV8);
+  } else {
+    initSyncWalletBalanceV8();
+  }
+})();
+</script>
 </body>
 </html>
