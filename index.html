@@ -4448,10 +4448,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Sync Top Current Wallet Card v10 (Direct State + Wallet Summary Fallback + Bilingual AR/EN + Safe Isolation) -->
+  <!-- Sync Top Current Wallet Card v11 (LocalStorage + DOM Summary + Safe Isolation + Bilingual AR/EN) -->
 <script>
 (function () {
-  function initSyncWalletBalanceV10() {
+  function initSyncWalletBalanceV11() {
     try {
       let isSyncing = false;
 
@@ -4471,105 +4471,84 @@ window.addEventListener("DOMContentLoaded", () => {
         })}`;
       };
 
-      const getStateObj = () => {
-        try {
-          if (typeof window.state !== "undefined" && window.state && typeof window.state === "object") {
-            return window.state;
-          }
-        } catch (_) {}
-        try {
-          if (typeof state !== "undefined" && state && typeof state === "object") {
-            return state;
-          }
-        } catch (_) {}
-        return null;
-      };
-
-      const computeCurrentWalletFromState = () => {
-        const st = getStateObj();
-        if (!st) return null;
-
+      const computeFromLocalStorage = () => {
         try {
           if (localStorage.getItem("sf2_account_reset_v6") === "1") {
             return 0;
           }
         } catch (_) {}
 
-        let topupsTotal = 0;
-        let manualTopupsActive = false;
+        let overrideTopups = null;
         try {
-          const rawOverride = localStorage.getItem("sf2_manual_topups_override_v7");
-          if (rawOverride !== null && rawOverride !== "") {
-            const parsedNum = Number(rawOverride);
-            if (Number.isFinite(parsedNum) && parsedNum >= 0) {
-              topupsTotal = parsedNum;
-              manualTopupsActive = true;
+          const rawOv = localStorage.getItem("sf2_manual_topups_override_v7");
+          if (rawOv !== null && rawOv !== "") {
+            const parsed = JSON.parse(rawOv);
+            const val = typeof parsed === "number" ? parsed : Number(parsed && (parsed.amount ?? parsed.value ?? parsed));
+            if (Number.isFinite(val) && val >= 0) {
+              overrideTopups = val;
             }
           }
         } catch (_) {}
 
-        if (!manualTopupsActive) {
-          if (Array.isArray(st.topups)) {
-            st.topups.forEach((t) => {
-              const amt = Number(t && (t.amount ?? t.value ?? 0));
-              if (Number.isFinite(amt)) topupsTotal += amt;
-            });
-          } else if (Array.isArray(st.walletTransactions)) {
-            st.walletTransactions.forEach((t) => {
-              if (!t) return;
-              const tp = String(t.type || "").toLowerCase();
-              if (tp.includes("topup") || tp.includes("top-up") || tp.includes("deposit")) {
-                const amt = Number(t.amount ?? t.value ?? 0);
-                if (Number.isFinite(amt)) topupsTotal += amt;
+        let computedTopups = 0;
+        let computedExpenses = 0;
+        let computedSavings = 0;
+        let foundAnyData = false;
+
+        try {
+          Object.keys(localStorage || {}).forEach((k) => {
+            if (k.startsWith("sf2_") && k !== "sf2_manual_topups_override_v7") return;
+            const raw = localStorage.getItem(k);
+            if (!raw || raw.length > 300000) return;
+            if (!raw.trim().startsWith("{") && !raw.trim().startsWith("[")) return;
+            try {
+              const parsed = JSON.parse(raw);
+              if (!parsed || typeof parsed !== "object") return;
+
+              if (Array.isArray(parsed.topups)) {
+                foundAnyData = true;
+                parsed.topups.forEach((t) => {
+                  const n = Number(t && (t.amount ?? t.value ?? 0));
+                  if (Number.isFinite(n)) computedTopups += n;
+                });
               }
-            });
-          } else if (typeof st.totalTopups === "number") {
-            topupsTotal = st.totalTopups;
-          }
-        }
-
-        let expensesTotal = 0;
-        if (Array.isArray(st.expenses)) {
-          st.expenses.forEach((e) => {
-            const amt = Math.abs(Number(e && (e.amount ?? e.value ?? 0)));
-            if (Number.isFinite(amt)) expensesTotal += amt;
+              if (Array.isArray(parsed.expenses)) {
+                foundAnyData = true;
+                parsed.expenses.forEach((e) => {
+                  const n = Math.abs(Number(e && (e.amount ?? e.value ?? 0)));
+                  if (Number.isFinite(n)) computedExpenses += n;
+                });
+              }
+              if (typeof parsed.savings === "number") {
+                foundAnyData = true;
+                computedSavings += Math.abs(parsed.savings);
+              } else if (Array.isArray(parsed.savings)) {
+                foundAnyData = true;
+                parsed.savings.forEach((s) => {
+                  const n = Number(s && (s.amount ?? s.value ?? 0));
+                  if (Number.isFinite(n)) computedSavings += n;
+                });
+              }
+            } catch (_) {}
           });
-        } else if (typeof st.totalExpenses === "number") {
-          expensesTotal = Math.abs(st.totalExpenses);
-        }
+        } catch (_) {}
 
-        let savingsTotal = 0;
-        if (typeof st.savings === "number") {
-          savingsTotal = Math.abs(st.savings);
-        } else if (Array.isArray(st.savings)) {
-          st.savings.forEach((s) => {
-            const amt = Number(s && (s.amount ?? s.value ?? 0));
-            if (Number.isFinite(amt)) savingsTotal += amt;
-          });
-        } else if (typeof st.totalSavings === "number") {
-          savingsTotal = Math.abs(st.totalSavings);
-        }
-
-        if (topupsTotal > 0 || expensesTotal > 0 || savingsTotal > 0 || manualTopupsActive) {
-          return Number((topupsTotal - expensesTotal - savingsTotal).toFixed(2));
+        const effectiveTopups = overrideTopups !== null ? overrideTopups : computedTopups;
+        if (overrideTopups !== null || foundAnyData) {
+          return Number((effectiveTopups - computedExpenses - computedSavings).toFixed(2));
         }
 
         return null;
       };
 
-      const getSummaryCurrentWalletText = () => {
-        const fromState = computeCurrentWalletFromState();
-        if (fromState !== null) {
-          return formatSar(fromState);
-        }
-
+      const readSummaryCardWalletValue = () => {
         const all = Array.from(document.querySelectorAll("div, section, article"));
         const summaryCard = all.find((el) => {
           const t = el.textContent || "";
           return (
             (t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary")) &&
             (t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet")) &&
-            t.length < 2500
+            t.length < 3000
           );
         });
         if (!summaryCard) return null;
@@ -4585,13 +4564,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
         if (labelEl) {
           let curr = labelEl.parentElement;
-          for (let i = 0; i < 3 && curr; i++) {
+          for (let i = 0; i < 4 && curr; i++) {
             const valEl = Array.from(curr.querySelectorAll("span, p, div, strong, b")).find(
               (el) => el.children.length === 0 && el !== labelEl && /SAR\s*[0-9]/i.test(el.textContent || "")
             );
             if (valEl) {
               const num = extractSarValue(valEl.textContent);
-              if (num !== null) return formatSar(num);
+              if (num !== null) return num;
             }
             curr = curr.parentElement;
           }
@@ -4604,8 +4583,12 @@ window.addEventListener("DOMContentLoaded", () => {
         if (isSyncing) return;
         isSyncing = true;
         try {
-          const targetText = getSummaryCurrentWalletText();
-          if (!targetText) return;
+          const summaryVal = readSummaryCardWalletValue();
+          const lsVal = computeFromLocalStorage();
+          const finalVal = summaryVal !== null ? summaryVal : lsVal;
+          if (finalVal === null) return;
+
+          const targetText = formatSar(finalVal);
 
           const all = Array.from(document.querySelectorAll("div, section, article"));
           const topCard = all.find((el) => {
@@ -4617,7 +4600,7 @@ window.addEventListener("DOMContentLoaded", () => {
               t.includes("الرصيد المتاح") ||
               t.toLowerCase().includes("available balance") ||
               t.toLowerCase().includes("available");
-            return !isSummary && hasTitle && hasSub && t.length < 1500;
+            return !isSummary && hasTitle && hasSub && t.length < 1800;
           });
           if (!topCard) return;
 
@@ -4625,11 +4608,8 @@ window.addEventListener("DOMContentLoaded", () => {
             (el) => el.children.length === 0 && /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test((el.textContent || "").trim())
           );
 
-          if (leaves.length > 0) {
-            const amountEl = leaves[0];
-            if (amountEl.textContent.trim() !== targetText) {
-              amountEl.textContent = targetText;
-            }
+          if (leaves.length > 0 && leaves[0].textContent.trim() !== targetText) {
+            leaves[0].textContent = targetText;
           }
         } finally {
           setTimeout(() => {
@@ -4646,20 +4626,20 @@ window.addEventListener("DOMContentLoaded", () => {
       if (typeof MutationObserver !== "undefined") {
         const obs = new MutationObserver(() => {
           if (!isSyncing) {
-            setTimeout(syncTopCurrentWalletCard, 50);
+            setTimeout(syncTopCurrentWalletCard, 60);
           }
         });
         obs.observe(document.body, { childList: true, subtree: true });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Sync wallet balance v10 guard:", err);
+      if (window.console && console.warn) console.warn("Sync wallet balance v11 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV10);
+    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV11);
   } else {
-    initSyncWalletBalanceV10();
+    initSyncWalletBalanceV11();
   }
 })();
 </script>
