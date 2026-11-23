@@ -3984,24 +3984,12 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Month Comparison 30-Day Rolling Window v3 (No Custom Buttons + Bilingual AR/EN + Safe Isolation) -->
+  <!-- Month Comparison 30-Day Rolling Window v4 (Accurate Month Start Detection + Bilingual AR/EN + Safe Isolation) -->
 <script>
 (function () {
-  function initMonthComparison30DaysV3() {
+  function initMonthComparison30DaysV4() {
     try {
-      const STORAGE_KEY = "sf2_custom_compare_ranges_v2";
       let isUpdating = false;
-
-      // إزالة أي أزرار أو نوافذ من النسخ السابقة إن وُجدت
-      ["sf2CmpWeekIconBtn", "sf2CmpMonthIconBtn", "sf2ComparePopoverV2", "sf2CompareWeekControl", "sf2CompareWeekPopover"].forEach(
-        (id) => {
-          const el = document.getElementById(id);
-          if (el && el.parentElement) el.parentElement.removeChild(el);
-        }
-      );
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch (_) {}
 
       const getLang = () => {
         try {
@@ -4036,10 +4024,43 @@ window.addEventListener("DOMContentLoaded", () => {
       const toIsoDate = (d) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-      const parseIsoDate = (iso) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || "")) return null;
-        const [y, m, day] = iso.split("-").map(Number);
-        return new Date(y, m - 1, day);
+      const parseLooseDateToIso = (raw) => {
+        if (!raw) return null;
+        const str = String(raw).trim();
+        const isoMatch = str.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+        if (isoMatch) {
+          return `${isoMatch[1]}-${String(isoMatch[2]).padStart(2, "0")}-${String(isoMatch[3]).padStart(2, "0")}`;
+        }
+        const months = {
+          jan: 0, january: 0, يناير: 0,
+          feb: 1, february: 1, فبراير: 1,
+          mar: 2, march: 2, مارس: 2,
+          apr: 3, april: 3, أبريل: 3, ابريل: 3,
+          may: 4, مايو: 4,
+          jun: 5, june: 5, يونيو: 5,
+          jul: 6, july: 6, يوليو: 6,
+          aug: 7, august: 7, أغسطس: 7, اغسطس: 7,
+          sep: 8, september: 8, سبتمبر: 8,
+          oct: 9, october: 9, أكتوبر: 9, اكتوبر: 9,
+          nov: 10, november: 10, نوفمبر: 10,
+          dec: 11, december: 11, ديسمبر: 11
+        };
+        const parts = str.toLowerCase().replace(/,/g, " ").split(/\s+/).filter(Boolean);
+        let year = null;
+        let monthIdx = null;
+        let day = null;
+        parts.forEach((p) => {
+          if (/^20\d{2}$/.test(p)) year = Number(p);
+          else if (p in months) monthIdx = months[p];
+          else if (/^\d{1,2}$/.test(p)) {
+            const n = Number(p);
+            if (n >= 1 && n <= 31 && day === null) day = n;
+          }
+        });
+        if (year !== null && monthIdx !== null && day !== null) {
+          return toIsoDate(new Date(year, monthIdx, day));
+        }
+        return null;
       };
 
       const getStateObj = () => {
@@ -4064,48 +4085,37 @@ window.addEventListener("DOMContentLoaded", () => {
             return (
               (t.includes("مقارنة شهر بشهر") || t.toLowerCase().includes("month over month")) &&
               (t.includes("الشهر المحدد") || t.toLowerCase().includes("selected month")) &&
-              t.length < 1000
+              t.length < 1100
             );
           }) || null
         );
       };
 
-      const detectSelectedMonthStartIso = (monthCard) => {
+      const detectSelectedMonthStartIso = () => {
         const st = getStateObj();
         if (st) {
-          const candidates = [
-            st.selectedMonthStart,
-            st.monthStart,
-            st.monthRangeStart,
-            st.currentMonthStart
-          ];
-          for (const c of candidates) {
-            if (typeof c === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.slice(0, 10))) {
-              return c.slice(0, 10);
-            }
+          const keys = ["selectedMonthStart", "monthStart", "monthRangeStart", "currentMonthStart"];
+          for (const k of keys) {
+            const iso = parseLooseDateToIso(st[k]);
+            if (iso) return iso;
           }
         }
 
-        // محاولة قراءة تاريخ بداية الشهر من حقول نطاق الشهر إن وُجدت في الصفحة
-        const dateInputs = Array.from(document.querySelectorAll("input[type='date']"));
-        const monthInput = dateInputs.find((inp) => {
-          const boxTxt = ((inp.closest && inp.closest("div, section") && inp.closest("div, section").textContent) || "");
-          return boxTxt.includes("نطاق الشهر") || boxTxt.toLowerCase().includes("month range");
+        // البحث عن قسم نطاق الشهر (البداية - النهاية) في الصفحة
+        const sections = Array.from(document.querySelectorAll("div, section, label, span, button"));
+        const rangeBox = sections.find((el) => {
+          const t = el.textContent || "";
+          return (t.includes("نطاق الشهر") || t.toLowerCase().includes("month range")) && t.length < 300;
         });
-        if (monthInput && /^\d{4}-\d{2}-\d{2}$/.test(monthInput.value || "")) {
-          return monthInput.value;
-        }
 
-        // محاولة استخراج تاريخ من نص داخل بطاقة مقارنة الشهر مثل (2026-10-01 -> 2026-10-31) أو الشهر الحالي
-        if (monthCard) {
-          const match = (monthCard.textContent || "").match(/\b(20\d{2}-\d{2}-\d{2})\b/);
-          if (match) {
-            const d = parseIsoDate(match[1]);
-            if (d) {
-              // إذا كان التاريخ يعود للشهر السابق، ننتقل لبداية الشهر التالي كشهر محدد افتراضي
-              const nextMonthFirst = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-              return toIsoDate(nextMonthFirst);
-            }
+        if (rangeBox) {
+          const container = rangeBox.parentElement || rangeBox;
+          const leafTexts = Array.from(container.querySelectorAll("span, p, div, button, input")).map((n) =>
+            n.tagName === "INPUT" ? n.value : n.textContent || ""
+          );
+          for (const txt of leafTexts) {
+            const iso = parseLooseDateToIso(txt);
+            if (iso) return iso;
           }
         }
 
@@ -4114,9 +4124,10 @@ window.addEventListener("DOMContentLoaded", () => {
       };
 
       const getPrevious30DaysRange = (selectedMonthStartIso) => {
-        const startDate = parseIsoDate(selectedMonthStartIso) || new Date();
-        // الـ 30 يوماً السابقة مباشرة لتاريخ بداية الشهر المحدد
-        const endPrev30 = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 1);
+        const iso = parseLooseDateToIso(selectedMonthStartIso) || toIsoDate(new Date());
+        const [y, m, d] = iso.split("-").map(Number);
+        const startObj = new Date(y, m - 1, d);
+        const endPrev30 = new Date(startObj.getFullYear(), startObj.getMonth(), startObj.getDate() - 1);
         const startPrev30 = new Date(endPrev30.getFullYear(), endPrev30.getMonth(), endPrev30.getDate() - 29);
         return {
           start: toIsoDate(startPrev30),
@@ -4124,36 +4135,45 @@ window.addEventListener("DOMContentLoaded", () => {
         };
       };
 
-      const computeSpendingInRange = (startIso, endIso) => {
+      const collectExpenseRecords = () => {
         const st = getStateObj();
-        const items = [];
+        const records = [];
+        const pushList = (arr) => {
+          if (!Array.isArray(arr)) return;
+          arr.forEach((item) => {
+            if (!item || typeof item !== "object") return;
+            const rawDate = item.date || item.createdAt || item.timestamp || item.day || "";
+            const dateIso = parseLooseDateToIso(rawDate);
+            const rawAmt = item.amount ?? item.value ?? item.price ?? item.total ?? 0;
+            const amt = Math.abs(Number(rawAmt));
+            if (dateIso && Number.isFinite(amt) && amt > 0) {
+              records.push({ date: dateIso, amount: amt });
+            }
+          });
+        };
+
         if (st) {
-          if (Array.isArray(st.expenses)) st.expenses.forEach((e) => items.push(e));
-          if (Array.isArray(st.transactions)) {
-            st.transactions.forEach((t) => {
-              if (!t) return;
-              const tp = String(t.type || "").toLowerCase();
-              if (tp.includes("expense") || tp.includes("spend") || Number(t.amount) < 0) {
-                items.push(t);
-              }
-            });
+          pushList(st.expenses);
+          pushList(st.transactions);
+          pushList(st.items);
+          if (st.data && typeof st.data === "object") {
+            pushList(st.data.expenses);
+            pushList(st.data.transactions);
           }
         }
-        if (!items.length) return null;
+        return records;
+      };
 
-        let total = 0;
-        items.forEach((item) => {
-          if (!item) return;
-          const rawDate = item.date || item.createdAt || item.timestamp || "";
-          const dateStr = String(rawDate).slice(0, 10);
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
-          if (dateStr >= startIso && dateStr <= endIso) {
-            const amt = Math.abs(Number(item.amount || item.value || 0));
-            if (Number.isFinite(amt)) total += amt;
+      const computeSpendingInRange = (startIso, endIso) => {
+        const records = collectExpenseRecords();
+        if (!records.length) return null;
+        let sum = 0;
+        records.forEach((r) => {
+          if (r.date >= startIso && r.date <= endIso) {
+            sum += r.amount;
           }
         });
-
-        return Number(total.toFixed(2));
+        return Number(sum.toFixed(2));
       };
 
       const syncMonthComparison30Days = () => {
@@ -4164,7 +4184,7 @@ window.addEventListener("DOMContentLoaded", () => {
           if (!monthCard) return;
 
           const lang = getLang();
-          const monthStartIso = detectSelectedMonthStartIso(monthCard);
+          const monthStartIso = detectSelectedMonthStartIso();
           const prev30 = getPrevious30DaysRange(monthStartIso);
 
           const leaves = Array.from(monthCard.querySelectorAll("span, p, div, strong, b")).filter(
@@ -4255,7 +4275,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       syncMonthComparison30Days();
       setTimeout(syncMonthComparison30Days, 250);
-      setTimeout(syncMonthComparison30Days, 800);
+      setTimeout(syncMonthComparison30Days, 850);
 
       if (typeof MutationObserver !== "undefined") {
         const obs = new MutationObserver(() => {
@@ -4274,14 +4294,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Month comparison 30d v3 guard:", err);
+      if (window.console && console.warn) console.warn("Month comparison 30d v4 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initMonthComparison30DaysV3);
+    document.addEventListener("DOMContentLoaded", initMonthComparison30DaysV4);
   } else {
-    initMonthComparison30DaysV3();
+    initMonthComparison30DaysV4();
   }
 })();
 </script>
