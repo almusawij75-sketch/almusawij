@@ -4448,168 +4448,90 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 })();
 </script>
-  <!-- Sync Top Current Wallet Card v11 (LocalStorage + DOM Summary + Safe Isolation + Bilingual AR/EN) -->
+ <!-- Sync Top Current Wallet Card (#kpiWallet) v12 (Direct #kpiWallet + Wallet Summary + finance_dashboard_guest_v1) -->
 <script>
 (function () {
-  function initSyncWalletBalanceV11() {
+  function initSyncTopWalletV12() {
     try {
       let isSyncing = false;
 
-      const extractSarValue = (text) => {
-        if (!text) return null;
-        const m = String(text).match(/SAR\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
-        if (!m) return null;
-        const num = parseFloat(m[1].replace(/,/g, ""));
-        return Number.isFinite(num) ? num : null;
+      const parseNum = (txt) => {
+        if (!txt) return null;
+        const cleaned = String(txt)
+          .replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)])
+          .replace(/[^0-9.-]/g, "");
+        const n = parseFloat(cleaned);
+        return Number.isFinite(n) ? n : null;
       };
 
-      const formatSar = (num) => {
-        const safe = Number.isFinite(num) ? num : 0;
-        return `SAR ${safe.toLocaleString("en-US", {
+      const formatWalletDisplay = (sarVal) => {
+        const safe = Number.isFinite(Number(sarVal)) ? Number(sarVal) : 0;
+        try {
+          if (typeof formatMoney === "function") {
+            return formatMoney(safe);
+          }
+        } catch (_) {}
+        const formatted = safe.toLocaleString("en-US", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
-        })}`;
+        });
+        const isAr =
+          ((document.documentElement && document.documentElement.dir) || "").toLowerCase() === "rtl" ||
+          ((document.documentElement && document.documentElement.lang) || "").toLowerCase().startsWith("ar");
+        return isAr ? `${formatted} SAR` : `SAR ${formatted}`;
       };
 
-      const computeFromLocalStorage = () => {
-        try {
-          if (localStorage.getItem("sf2_account_reset_v6") === "1") {
-            return 0;
-          }
-        } catch (_) {}
+      const getTargetWalletSar = () => {
+        // 1) إذا كان ملخص حركة المحفظة معروضاً في الصفحة، نأخذ القيمة الظاهرة فيه مباشرة
+        const summaryBalEl = document.getElementById("walletSummaryBalance");
+        if (summaryBalEl && summaryBalEl.textContent) {
+          const n = parseNum(summaryBalEl.textContent);
+          if (n !== null) return n;
+        }
 
-        let overrideTopups = null;
+        // 2) وإلا نحسبها من التخزين المحلي للتطبيق (finance_dashboard_guest_v1) + تعديل الإيداعات اليدوي إن وجد
         try {
-          const rawOv = localStorage.getItem("sf2_manual_topups_override_v7");
-          if (rawOv !== null && rawOv !== "") {
-            const parsed = JSON.parse(rawOv);
-            const val = typeof parsed === "number" ? parsed : Number(parsed && (parsed.amount ?? parsed.value ?? parsed));
-            if (Number.isFinite(val) && val >= 0) {
-              overrideTopups = val;
+          const rawApp = localStorage.getItem("finance_dashboard_guest_v1");
+          if (rawApp) {
+            const appState = JSON.parse(rawApp);
+            if (appState && typeof appState === "object") {
+              let topups = Number(appState.walletTotalAdded) || 0;
+              const rawOverride = localStorage.getItem("sf2_manual_topups_override_v7");
+              if (rawOverride !== null && rawOverride !== "") {
+                const ovNum = parseFloat(rawOverride);
+                if (Number.isFinite(ovNum) && ovNum >= 0) topups = ovNum;
+              }
+              const expenses = Array.isArray(appState.expenses)
+                ? appState.expenses.reduce((s, e) => s + Math.abs(Number(e && e.amount) || 0), 0)
+                : 0;
+              const savings = Math.abs(Number(appState.savingsBalance) || 0);
+
+              if (rawOverride !== null && rawOverride !== "") {
+                return Number((topups - expenses - savings).toFixed(2));
+              }
+              if (Number.isFinite(Number(appState.walletBalance))) {
+                return Number(appState.walletBalance);
+              }
             }
           }
         } catch (_) {}
 
-        let computedTopups = 0;
-        let computedExpenses = 0;
-        let computedSavings = 0;
-        let foundAnyData = false;
-
-        try {
-          Object.keys(localStorage || {}).forEach((k) => {
-            if (k.startsWith("sf2_") && k !== "sf2_manual_topups_override_v7") return;
-            const raw = localStorage.getItem(k);
-            if (!raw || raw.length > 300000) return;
-            if (!raw.trim().startsWith("{") && !raw.trim().startsWith("[")) return;
-            try {
-              const parsed = JSON.parse(raw);
-              if (!parsed || typeof parsed !== "object") return;
-
-              if (Array.isArray(parsed.topups)) {
-                foundAnyData = true;
-                parsed.topups.forEach((t) => {
-                  const n = Number(t && (t.amount ?? t.value ?? 0));
-                  if (Number.isFinite(n)) computedTopups += n;
-                });
-              }
-              if (Array.isArray(parsed.expenses)) {
-                foundAnyData = true;
-                parsed.expenses.forEach((e) => {
-                  const n = Math.abs(Number(e && (e.amount ?? e.value ?? 0)));
-                  if (Number.isFinite(n)) computedExpenses += n;
-                });
-              }
-              if (typeof parsed.savings === "number") {
-                foundAnyData = true;
-                computedSavings += Math.abs(parsed.savings);
-              } else if (Array.isArray(parsed.savings)) {
-                foundAnyData = true;
-                parsed.savings.forEach((s) => {
-                  const n = Number(s && (s.amount ?? s.value ?? 0));
-                  if (Number.isFinite(n)) computedSavings += n;
-                });
-              }
-            } catch (_) {}
-          });
-        } catch (_) {}
-
-        const effectiveTopups = overrideTopups !== null ? overrideTopups : computedTopups;
-        if (overrideTopups !== null || foundAnyData) {
-          return Number((effectiveTopups - computedExpenses - computedSavings).toFixed(2));
-        }
-
         return null;
       };
 
-      const readSummaryCardWalletValue = () => {
-        const all = Array.from(document.querySelectorAll("div, section, article"));
-        const summaryCard = all.find((el) => {
-          const t = el.textContent || "";
-          return (
-            (t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary")) &&
-            (t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet")) &&
-            t.length < 3000
-          );
-        });
-        if (!summaryCard) return null;
-
-        const leaves = Array.from(summaryCard.querySelectorAll("span, p, div, strong, b")).filter(
-          (el) => el.children.length === 0 && (el.textContent || "").trim().length > 0
-        );
-
-        const labelEl = leaves.find((el) => {
-          const t = (el.textContent || "").trim();
-          return t === "المحفظة الحالية" || t.toLowerCase() === "current wallet";
-        });
-
-        if (labelEl) {
-          let curr = labelEl.parentElement;
-          for (let i = 0; i < 4 && curr; i++) {
-            const valEl = Array.from(curr.querySelectorAll("span, p, div, strong, b")).find(
-              (el) => el.children.length === 0 && el !== labelEl && /SAR\s*[0-9]/i.test(el.textContent || "")
-            );
-            if (valEl) {
-              const num = extractSarValue(valEl.textContent);
-              if (num !== null) return num;
-            }
-            curr = curr.parentElement;
-          }
-        }
-
-        return null;
-      };
-
-      const syncTopCurrentWalletCard = () => {
+      const syncKpiWallet = () => {
         if (isSyncing) return;
         isSyncing = true;
         try {
-          const summaryVal = readSummaryCardWalletValue();
-          const lsVal = computeFromLocalStorage();
-          const finalVal = summaryVal !== null ? summaryVal : lsVal;
-          if (finalVal === null) return;
+          const kpiEl = document.getElementById("kpiWallet");
+          if (!kpiEl) return;
 
-          const targetText = formatSar(finalVal);
+          const targetSar = getTargetWalletSar();
+          if (targetSar === null) return;
 
-          const all = Array.from(document.querySelectorAll("div, section, article"));
-          const topCard = all.find((el) => {
-            const t = el.textContent || "";
-            const isSummary = t.includes("ملخص حركة المحفظة") || t.toLowerCase().includes("wallet summary");
-            const hasTitle = t.includes("المحفظة الحالية") || t.toLowerCase().includes("current wallet");
-            const hasSub =
-              t.includes("الرصيد المتاح حالياً") ||
-              t.includes("الرصيد المتاح") ||
-              t.toLowerCase().includes("available balance") ||
-              t.toLowerCase().includes("available");
-            return !isSummary && hasTitle && hasSub && t.length < 1800;
-          });
-          if (!topCard) return;
-
-          const leaves = Array.from(topCard.querySelectorAll("span, p, div, strong, b")).filter(
-            (el) => el.children.length === 0 && /^SAR\s*[0-9,]+(\.[0-9]+)?$/i.test((el.textContent || "").trim())
-          );
-
-          if (leaves.length > 0 && leaves[0].textContent.trim() !== targetText) {
-            leaves[0].textContent = targetText;
+          const targetText = formatWalletDisplay(targetSar);
+          if (kpiEl.textContent.trim() !== targetText) {
+            kpiEl.textContent = targetText;
           }
         } finally {
           setTimeout(() => {
@@ -4618,28 +4540,28 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       };
 
-      syncTopCurrentWalletCard();
-      setTimeout(syncTopCurrentWalletCard, 250);
-      setTimeout(syncTopCurrentWalletCard, 800);
-      setTimeout(syncTopCurrentWalletCard, 1800);
+      syncKpiWallet();
+      setTimeout(syncKpiWallet, 200);
+      setTimeout(syncKpiWallet, 700);
+      setTimeout(syncKpiWallet, 1600);
 
       if (typeof MutationObserver !== "undefined") {
         const obs = new MutationObserver(() => {
           if (!isSyncing) {
-            setTimeout(syncTopCurrentWalletCard, 60);
+            setTimeout(syncKpiWallet, 40);
           }
         });
         obs.observe(document.body, { childList: true, subtree: true });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Sync wallet balance v11 guard:", err);
+      if (window.console && console.warn) console.warn("Sync top wallet v12 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initSyncWalletBalanceV11);
+    document.addEventListener("DOMContentLoaded", initSyncTopWalletV12);
   } else {
-    initSyncWalletBalanceV11();
+    initSyncTopWalletV12();
   }
 })();
 </script>
