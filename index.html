@@ -3983,11 +3983,10 @@ window.addEventListener("DOMContentLoaded", () => {
     initEditTotalTopupsBoxV7();
   }
 })();
-</script>
-  <!-- Month Comparison 30-Day Rolling Window v4 (Accurate Month Start Detection + Bilingual AR/EN + Safe Isolation) -->
+</script><!-- Month Comparison 30-Day Rolling Window v5 (Exact Start Date From Month Range + Bilingual AR/EN + Safe Isolation) -->
 <script>
 (function () {
-  function initMonthComparison30DaysV4() {
+  function initMonthComparison30DaysV5() {
     try {
       let isUpdating = false;
 
@@ -4101,21 +4100,21 @@ window.addEventListener("DOMContentLoaded", () => {
           }
         }
 
-        // البحث عن قسم نطاق الشهر (البداية - النهاية) في الصفحة
-        const sections = Array.from(document.querySelectorAll("div, section, label, span, button"));
-        const rangeBox = sections.find((el) => {
-          const t = el.textContent || "";
-          return (t.includes("نطاق الشهر") || t.toLowerCase().includes("month range")) && t.length < 300;
+        // البحث عن قسم "نطاق الشهر (البداية - النهاية)" وأخذ أول تاريخ يمثل البداية
+        const labels = Array.from(document.querySelectorAll("div, section, label, span, p, h1, h2, h3, h4"));
+        const monthRangeHeading = labels.find((el) => {
+          const t = (el.textContent || "").trim();
+          return (t.includes("نطاق الشهر") || t.toLowerCase().includes("month range")) && t.length < 120;
         });
 
-        if (rangeBox) {
-          const container = rangeBox.parentElement || rangeBox;
-          const leafTexts = Array.from(container.querySelectorAll("span, p, div, button, input")).map((n) =>
-            n.tagName === "INPUT" ? n.value : n.textContent || ""
-          );
-          for (const txt of leafTexts) {
-            const iso = parseLooseDateToIso(txt);
-            if (iso) return iso;
+        if (monthRangeHeading && monthRangeHeading.parentElement) {
+          const box = monthRangeHeading.parentElement;
+          const dateCandidates = Array.from(box.querySelectorAll("button, input, span, div"))
+            .map((n) => (n.tagName === "INPUT" ? n.value : n.textContent || "").trim())
+            .map(parseLooseDateToIso)
+            .filter(Boolean);
+          if (dateCandidates.length > 0) {
+            return dateCandidates[0];
           }
         }
 
@@ -4127,6 +4126,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const iso = parseLooseDateToIso(selectedMonthStartIso) || toIsoDate(new Date());
         const [y, m, d] = iso.split("-").map(Number);
         const startObj = new Date(y, m - 1, d);
+        // الـ 30 يوماً السابقة مباشرة لتاريخ بداية الشهر المحدد
         const endPrev30 = new Date(startObj.getFullYear(), startObj.getMonth(), startObj.getDate() - 1);
         const startPrev30 = new Date(endPrev30.getFullYear(), endPrev30.getMonth(), endPrev30.getDate() - 29);
         return {
@@ -4232,7 +4232,7 @@ window.addEventListener("DOMContentLoaded", () => {
             }
           }
 
-          // تحديث سطر النطاق التاريخي أسفل بطاقة مقارنة الشهر إن وُجد
+          // تحديث سطر النطاق التاريخي أسفل بطاقة مقارنة الشهر ليعكس الـ 30 يوماً السابقة لبداية الشهر المحدد
           const rangeLine = Array.from(monthCard.querySelectorAll("span, p, div")).find((el) => {
             const t = (el.textContent || "").trim();
             return el.children.length === 0 && /\d{4}-\d{2}-\d{2}/.test(t) && (t.includes("→") || t.includes("←") || t.includes("SAR"));
@@ -4242,8 +4242,12 @@ window.addEventListener("DOMContentLoaded", () => {
             const selVal = selAmtEl ? parseNumeric(selAmtEl.textContent) : 0;
             const prevVal = prevAmtEl ? parseNumeric(prevAmtEl.textContent) : 0;
             const diff = Number((selVal - prevVal).toFixed(2));
-            const diffStr = diff < 0 ? `${Math.abs(diff).toFixed(2)}-` : `${diff.toFixed(2)}+`;
-            const nextRangeText = `SAR (${prev30.start} ${arrow} ${prev30.end}) ${diffStr}`;
+            const diffFormatted = Math.abs(diff).toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            });
+            const diffSign = diff < 0 ? "-" : "+";
+            const nextRangeText = `SAR (${prev30.start} ${arrow} ${prev30.end}) ${diffFormatted}${diffSign}`;
             if (rangeLine.textContent !== nextRangeText) {
               rangeLine.textContent = nextRangeText;
             }
@@ -4294,14 +4298,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
       }
     } catch (err) {
-      if (window.console && console.warn) console.warn("Month comparison 30d v4 guard:", err);
+      if (window.console && console.warn) console.warn("Month comparison 30d v5 guard:", err);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initMonthComparison30DaysV4);
+    document.addEventListener("DOMContentLoaded", initMonthComparison30DaysV5);
   } else {
-    initMonthComparison30DaysV4();
+    initMonthComparison30DaysV5();
   }
 })();
 </script>
