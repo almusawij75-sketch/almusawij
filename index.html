@@ -3202,6 +3202,10 @@ window.addEventListener("DOMContentLoaded", () => {
             delBtn.textContent = d.deleteBtn;
             delBtn.addEventListener("click", () => {
               const currentLoans = getLoans();
+              const msg = getLang() === "en"
+  ? `Delete loan "${ln.name || ""}"?`
+  : `هل أنت متأكد من حذف القرض "${ln.name || ""}"؟`;
+if (!window.confirm(msg)) return;
               const idx = currentLoans.findIndex((x) => x.id === ln.id);
               if (idx !== -1) {
                 currentLoans.splice(idx, 1);
